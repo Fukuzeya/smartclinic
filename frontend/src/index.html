@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SmartClinic</title>
+    <base href="/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="SmartClinic — Integrated clinic management system" />
+    <link rel="icon" type="image/svg+xml" href="favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <style>
+      /* Splash screen shown while Keycloak and Angular initialise.
+         Angular removes #app-loading once the root component renders. */
+      #app-loading {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        background: #f1f5f9;
+        z-index: 9999;
+        font-family: 'Inter', system-ui, sans-serif;
+        transition: opacity 0.3s ease;
+      }
+      #app-loading.hidden { opacity: 0; pointer-events: none; }
+      .splash-brand {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 1.6rem;
+        font-weight: 700;
+        color: #1e293b;
+      }
+      .splash-brand span { font-size: 2.2rem; }
+      .splash-spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid #e2e8f0;
+        border-top-color: #2563eb;
+        border-radius: 50%;
+        animation: splash-spin 0.8s linear infinite;
+      }
+      .splash-msg {
+        font-size: 0.875rem;
+        color: #64748b;
+        letter-spacing: 0.02em;
+      }
+      @keyframes splash-spin { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <!-- Splash shown until Angular bootstraps and Keycloak authenticates -->
+    <div id="app-loading">
+      <div class="splash-brand">
+        <span>🏥</span>
+        SmartClinic
+      </div>
+      <div class="splash-spinner"></div>
+      <p class="splash-msg">Authenticating — please wait…</p>
+    </div>
+
+    <app-root></app-root>
+
+    <script>
+      // Hide the splash once Angular's root component renders into the DOM.
+      // MutationObserver detects when <app-root> gets children (first render).
+      const splash = document.getElementById('app-loading');
+      const observer = new MutationObserver(() => {
+        const root = document.querySelector('app-root');
+        if (root && root.children.length > 0) {
+          splash.classList.add('hidden');
+          setTimeout(() => splash.remove(), 350);
+          observer.disconnect();
+        }
+      });
+      observer.observe(document.querySelector('app-root'), { childList: true });
+    </script>
+  </body>
+</html>

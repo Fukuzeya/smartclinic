@@ -1,0 +1,29 @@
+[project]
+name = "scheduling"
+version = "0.2.0"
+description = "SmartClinic — Scheduling bounded context."
+requires-python = ">=3.12"
+dependencies = [
+    "shared_kernel",
+    "fastapi>=0.115,<1.0",
+    "uvicorn[standard]>=0.30",
+    "sqlalchemy>=2.0,<3.0",
+    "asyncpg>=0.29",
+    "alembic>=1.13",
+    "pydantic-settings>=2.4",
+    "aio-pika>=9.4",
+]
+
+[tool.uv.sources]
+shared_kernel = { workspace = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/scheduling"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

@@ -1,0 +1,68 @@
+# SmartClinic — Grafana datasources (provisioned on boot).
+#
+# We wire up the full three-pillar observability stack:
+#   - Prometheus (metrics)
+#   - Loki       (logs)
+#   - Jaeger     (traces)
+#
+# Trace/log correlation is enabled via `derivedFields` on Loki: any log line
+# carrying a `trace_id` becomes a one-click link into Jaeger. The reverse
+# jump (span → logs) is wired via `tracesToLogsV2` on Jaeger.
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    uid: prometheus
+    editable: false
+    jsonData:
+      httpMethod: POST
+      timeInterval: 15s
+      exemplarTraceIdDestinations:
+        - name: trace_id
+          datasourceUid: jaeger
+
+  - name: Loki
+    type: loki
+    access: proxy
+    url: http://loki:3100
+    uid: loki
+    editable: false
+    jsonData:
+      maxLines: 5000
+      derivedFields:
+        - name: TraceID
+          matcherRegex: '"trace_id":"(\w+)"'
+          url: '$${__value.raw}'
+          datasourceUid: jaeger
+          urlDisplayLabel: "View trace in Jaeger"
+
+  - name: Jaeger
+    type: jaeger
+    access: proxy
+    url: http://jaeger:16686
+    uid: jaeger
+    editable: false
+    jsonData:
+      tracesToLogsV2:
+        datasourceUid: loki
+        spanStartTimeShift: "-1m"
+        spanEndTimeShift: "1m"
+        tags:
+          - key: service.name
+            value: service_name
+        filterByTraceID: true
+      tracesToMetrics:
+        datasourceUid: prometheus
+        tags:
+          - key: service.name
+            value: service_name
+        queries:
+          - name: "Request rate"
+            query: 'sum(rate(http_requests_total{service_name="$${__tags.service_name}"}[5m]))'
+      nodeGraph:
+        enabled: true

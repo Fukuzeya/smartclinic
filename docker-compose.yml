@@ -1,0 +1,466 @@
+# SmartClinic — production-like local stack.
+#
+# `docker compose up -d` stands up everything needed to exercise the six
+# bounded contexts end-to-end: Postgres per context, RabbitMQ, Keycloak,
+# and the three-pillar observability stack (Jaeger + Prometheus + Loki,
+# wired together in Grafana with trace/log/metric cross-linking).
+#
+# Services are deliberately ordered by layer (data → broker → identity →
+# observability → bounded contexts) so a human reading this file top-to-
+# bottom gets the same architectural narrative as the context map.
+#
+# The bounded-context services themselves are scaffolded in Phase 1 but
+# not yet implemented — their Dockerfiles will land with each context.
+
+name: smartclinic
+
+networks:
+  smartclinic:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  rabbitmq-data:
+  keycloak-data:
+  prometheus-data:
+  grafana-data:
+  loki-data:
+
+services:
+  # ---- data plane ----------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: smartclinic-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./ops/postgres/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [smartclinic]
+    deploy:
+      resources:
+        limits: { cpus: "2.0", memory: 1G }
+
+  # ---- messaging -----------------------------------------------------
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: smartclinic-rabbitmq
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: smartclinic
+      RABBITMQ_DEFAULT_PASS: smartclinic
+      RABBITMQ_DEFAULT_VHOST: "/"
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # management UI
+      - "15692:15692"  # Prometheus metrics
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+      - ./ops/rabbitmq/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf:ro
+      - ./ops/rabbitmq/definitions.json:/etc/rabbitmq/definitions.json:ro
+    command: >
+      sh -c "rabbitmq-plugins enable --offline rabbitmq_prometheus &&
+             rabbitmq-server"
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 12
+    networks: [smartclinic]
+    deploy:
+      resources:
+        limits: { cpus: "1.5", memory: 768M }
+
+  # ---- identity ------------------------------------------------------
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    container_name: smartclinic-keycloak
+    restart: unless-stopped
+    command:
+      - "start-dev"
+      - "--import-realm"
+      - "--health-enabled=true"
+      - "--metrics-enabled=true"
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KC_HOSTNAME: localhost
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY: edge
+      KEYCLOAK_ADMIN: admin
+      KEYCLOAK_ADMIN_PASSWORD: admin
+    ports:
+      - "8080:8080"
+      - "9000:9000"   # management (health + metrics)
+    volumes:
+      - keycloak-data:/opt/keycloak/data
+      - ./ops/keycloak/smartclinic-realm.json:/opt/keycloak/data/import/smartclinic-realm.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/localhost/9000' 2>/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 60s
+    networks: [smartclinic]
+    deploy:
+      resources:
+        limits: { cpus: "1.5", memory: 1G }
+
+  # ---- observability: traces -----------------------------------------
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: smartclinic-jaeger
+    restart: unless-stopped
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      SPAN_STORAGE_TYPE: memory
+    ports:
+      - "16686:16686"  # UI
+      - "14317:4317"   # OTLP gRPC (exposed on host for debugging)
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:14269/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [smartclinic]
+
+  # ---- observability: metrics ----------------------------------------
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    container_name: smartclinic-prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=7d"
+      - "--web.enable-lifecycle"
+      - "--web.enable-remote-write-receiver"
+      - "--enable-feature=exemplar-storage"
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./ops/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9090/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [smartclinic]
+
+  # ---- observability: logs -------------------------------------------
+  loki:
+    image: grafana/loki:3.1.1
+    container_name: smartclinic-loki
+    restart: unless-stopped
+    command: ["-config.file=/etc/loki/loki-config.yaml"]
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./ops/loki/loki-config.yaml:/etc/loki/loki-config.yaml:ro
+      - loki-data:/loki
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3100/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [smartclinic]
+
+  # ---- observability: collector --------------------------------------
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.107.0
+    container_name: smartclinic-otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otel/config.yaml"]
+    ports:
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+      - "8888:8888"   # collector self-metrics
+      - "8889:8889"   # exported metrics (scraped by Prometheus)
+      - "13133:13133" # health
+    volumes:
+      - ./ops/otel-collector/config.yaml:/etc/otel/config.yaml:ro
+    depends_on:
+      jaeger:
+        condition: service_started
+      loki:
+        condition: service_started
+      prometheus:
+        condition: service_started
+    healthcheck:
+      disable: true
+    networks: [smartclinic]
+
+  # ---- observability: UI ---------------------------------------------
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: smartclinic-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_FEATURE_TOGGLES_ENABLE: traceqlEditor traceToMetrics
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./ops/grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
+      - ./ops/grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+      loki:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/api/health | grep -q ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks: [smartclinic]
+
+  # ---- developer email inbox -----------------------------------------
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: smartclinic-mailhog
+    restart: unless-stopped
+    ports:
+      - "1025:1025"  # SMTP
+      - "8025:8025"  # UI
+    networks: [smartclinic]
+
+  # ==== bounded-context services ======================================
+  # Each one runs from services/<context>/Dockerfile, which is scaffolded
+  # in Phase 1 but becomes real in the phase that owns the context.
+  # They share a common environment shape so new contexts slot in with
+  # zero surprise.
+
+  patient_identity:
+    build:
+      context: .
+      dockerfile: services/patient_identity/Dockerfile
+    container_name: smartclinic-patient_identity
+    restart: unless-stopped
+    environment:
+      SERVICE_NAME: patient_identity
+      ENVIRONMENT: dev
+      DATABASE_URL: postgresql+asyncpg://patient_identity:patient_identity@postgres:5432/patient_identity
+      RABBITMQ_URL: amqp://smartclinic:smartclinic@rabbitmq:5672/
+      RABBITMQ_EXCHANGE: smartclinic.events
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OIDC_ISSUER: http://localhost:8080/realms/smartclinic
+      OIDC_JWKS_URL: http://keycloak:8080/realms/smartclinic/protocol/openid-connect/certs
+      OIDC_AUDIENCE: smartclinic-api
+      LOG_LEVEL: INFO
+    ports:
+      - "8001:8000"
+    depends_on:
+      postgres:       { condition: service_healthy }
+      rabbitmq:       { condition: service_healthy }
+      keycloak:       { condition: service_healthy }
+      otel-collector: { condition: service_started }
+    networks: [smartclinic]
+
+  scheduling:
+    build:
+      context: .
+      dockerfile: services/scheduling/Dockerfile
+    container_name: smartclinic-scheduling
+    restart: unless-stopped
+    environment:
+      SERVICE_NAME: scheduling
+      ENVIRONMENT: dev
+      DATABASE_URL: postgresql+asyncpg://scheduling:scheduling@postgres:5432/scheduling
+      RABBITMQ_URL: amqp://smartclinic:smartclinic@rabbitmq:5672/
+      RABBITMQ_EXCHANGE: smartclinic.events
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OIDC_ISSUER: http://localhost:8080/realms/smartclinic
+      OIDC_JWKS_URL: http://keycloak:8080/realms/smartclinic/protocol/openid-connect/certs
+      OIDC_AUDIENCE: smartclinic-api
+      LOG_LEVEL: INFO
+    ports:
+      - "8002:8000"
+    depends_on:
+      postgres:       { condition: service_healthy }
+      rabbitmq:       { condition: service_healthy }
+      keycloak:       { condition: service_healthy }
+      otel-collector: { condition: service_started }
+    networks: [smartclinic]
+
+  clinical:
+    build:
+      context: .
+      dockerfile: services/clinical/Dockerfile
+    container_name: smartclinic-clinical
+    restart: unless-stopped
+    environment:
+      SERVICE_NAME: clinical
+      ENVIRONMENT: dev
+      DATABASE_URL: postgresql+asyncpg://clinical:clinical@postgres:5432/clinical_write
+      RABBITMQ_URL: amqp://smartclinic:smartclinic@rabbitmq:5672/
+      RABBITMQ_EXCHANGE: smartclinic.events
+      CLINICAL_EVENTS_QUEUE: clinical.events
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OIDC_ISSUER: http://localhost:8080/realms/smartclinic
+      OIDC_JWKS_URL: http://keycloak:8080/realms/smartclinic/protocol/openid-connect/certs
+      OIDC_AUDIENCE: smartclinic-api
+      LOG_LEVEL: INFO
+    ports:
+      - "8003:8000"
+    depends_on:
+      postgres:       { condition: service_healthy }
+      rabbitmq:       { condition: service_healthy }
+      keycloak:       { condition: service_healthy }
+      otel-collector: { condition: service_started }
+    networks: [smartclinic]
+
+  pharmacy:
+    build:
+      context: .
+      dockerfile: services/pharmacy/Dockerfile
+    container_name: smartclinic-pharmacy
+    restart: unless-stopped
+    environment:
+      SERVICE_NAME: pharmacy
+      ENVIRONMENT: dev
+      DATABASE_URL: postgresql+asyncpg://pharmacy:pharmacy@postgres:5432/pharmacy
+      RABBITMQ_URL: amqp://smartclinic:smartclinic@rabbitmq:5672/
+      RABBITMQ_EXCHANGE: smartclinic.events
+      CLINICAL_EVENTS_QUEUE: pharmacy.clinical.events
+      PATIENT_EVENTS_QUEUE: pharmacy.patient.events
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OIDC_ISSUER: http://localhost:8080/realms/smartclinic
+      OIDC_JWKS_URL: http://keycloak:8080/realms/smartclinic/protocol/openid-connect/certs
+      OIDC_AUDIENCE: smartclinic-api
+      RXNAV_BASE_URL: https://rxnav.nlm.nih.gov/REST
+      LOG_LEVEL: INFO
+    ports:
+      - "8004:8000"
+    depends_on:
+      postgres:       { condition: service_healthy }
+      rabbitmq:       { condition: service_healthy }
+      keycloak:       { condition: service_healthy }
+      otel-collector: { condition: service_started }
+    networks: [smartclinic]
+
+  laboratory:
+    build:
+      context: .
+      dockerfile: services/laboratory/Dockerfile
+    container_name: smartclinic-laboratory
+    restart: unless-stopped
+    environment:
+      SERVICE_NAME: laboratory
+      ENVIRONMENT: dev
+      DATABASE_URL: postgresql+asyncpg://laboratory:laboratory@postgres:5432/laboratory
+      RABBITMQ_URL: amqp://smartclinic:smartclinic@rabbitmq:5672/
+      RABBITMQ_EXCHANGE: smartclinic.events
+      CLINICAL_EVENTS_QUEUE: laboratory.clinical.events
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OIDC_ISSUER: http://localhost:8080/realms/smartclinic
+      OIDC_JWKS_URL: http://keycloak:8080/realms/smartclinic/protocol/openid-connect/certs
+      OIDC_AUDIENCE: smartclinic-api
+      LOG_LEVEL: INFO
+    ports:
+      - "8005:8000"
+    depends_on:
+      postgres:       { condition: service_healthy }
+      rabbitmq:       { condition: service_healthy }
+      keycloak:       { condition: service_healthy }
+      otel-collector: { condition: service_started }
+    networks: [smartclinic]
+
+  billing:
+    build:
+      context: .
+      dockerfile: services/billing/Dockerfile
+    container_name: smartclinic-billing
+    restart: unless-stopped
+    environment:
+      SERVICE_NAME: billing
+      ENVIRONMENT: dev
+      DATABASE_URL: postgresql+asyncpg://billing:billing@postgres:5432/billing
+      RABBITMQ_URL: amqp://smartclinic:smartclinic@rabbitmq:5672/
+      RABBITMQ_EXCHANGE: smartclinic.events
+      CLINICAL_EVENTS_QUEUE: billing.clinical.events
+      LABORATORY_EVENTS_QUEUE: billing.laboratory.events
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OIDC_ISSUER: http://localhost:8080/realms/smartclinic
+      OIDC_JWKS_URL: http://keycloak:8080/realms/smartclinic/protocol/openid-connect/certs
+      OIDC_AUDIENCE: smartclinic-api
+      SMTP_HOST: mailhog
+      SMTP_PORT: "1025"
+      LOG_LEVEL: INFO
+    ports:
+      - "8006:8000"
+    depends_on:
+      postgres:       { condition: service_healthy }
+      rabbitmq:       { condition: service_healthy }
+      keycloak:       { condition: service_healthy }
+      otel-collector: { condition: service_started }
+    networks: [smartclinic]
+
+  # ---- Angular SPA (served via nginx) -------------------------------------
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: smartclinic-frontend
+    restart: unless-stopped
+    ports:
+      - "4200:80"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks: [smartclinic]
+
+  saga_orchestrator:
+    build:
+      context: .
+      dockerfile: services/saga_orchestrator/Dockerfile
+    container_name: smartclinic-saga
+    restart: unless-stopped
+    environment:
+      SERVICE_NAME: saga_orchestrator
+      ENVIRONMENT: dev
+      DATABASE_URL: postgresql+asyncpg://saga:saga@postgres:5432/saga
+      RABBITMQ_URL: amqp://smartclinic:smartclinic@rabbitmq:5672/
+      RABBITMQ_EXCHANGE: smartclinic.events
+      ALL_EVENTS_QUEUE: saga.all.events
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      OIDC_ISSUER: http://localhost:8080/realms/smartclinic
+      OIDC_JWKS_URL: http://keycloak:8080/realms/smartclinic/protocol/openid-connect/certs
+      OIDC_AUDIENCE: smartclinic-api
+      LOG_LEVEL: INFO
+    ports:
+      - "8007:8000"
+    depends_on:
+      postgres:       { condition: service_healthy }
+      rabbitmq:       { condition: service_healthy }
+      keycloak:       { condition: service_healthy }
+      otel-collector: { condition: service_started }
+    networks: [smartclinic]

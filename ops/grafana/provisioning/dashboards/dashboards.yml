@@ -1,0 +1,20 @@
+# SmartClinic — Grafana dashboard provisioning.
+#
+# Scans /etc/grafana/provisioning/dashboards/smartclinic for dashboard JSON
+# files on boot and reloads every 30 s while the container runs. Editable in
+# the UI (`allowUiUpdates: true`) but changes are NOT persisted across
+# container restarts — the repo is the source of truth.
+
+apiVersion: 1
+
+providers:
+  - name: SmartClinic
+    orgId: 1
+    folder: SmartClinic
+    type: file
+    disableDeletion: false
+    allowUiUpdates: true
+    updateIntervalSeconds: 30
+    options:
+      path: /etc/grafana/provisioning/dashboards/smartclinic
+      foldersFromFilesStructure: false

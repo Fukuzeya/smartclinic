@@ -1,0 +1,79 @@
+# OpenTelemetry Collector — SmartClinic fan-out pipeline.
+#
+# Ingests OTLP from every service (traces, metrics, logs) and fans the
+# signals out to their respective back-ends:
+#
+#   traces   →  Jaeger     (jaeger:14317)
+#   metrics  →  Prometheus (scraped from the collector's /metrics)
+#   logs     →  Loki       (loki:3100 via loki exporter)
+#
+# A single collector keeps services ignorant of the concrete observability
+# stack — swapping Jaeger for Tempo or Loki for ELK is a config change here,
+# not a redeploy of seven services.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+    send_batch_size: 512
+    timeout: 2s
+
+  memory_limiter:
+    check_interval: 5s
+    limit_percentage: 75
+    spike_limit_percentage: 20
+
+  resource:
+    attributes:
+      - key: service.namespace
+        value: smartclinic
+        action: upsert
+
+exporters:
+  # Traces → Jaeger (OTLP gRPC receiver).
+  otlp/jaeger:
+    endpoint: jaeger:4317
+    tls:
+      insecure: true
+
+  # Metrics → Prometheus scrape endpoint exposed by the collector.
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    resource_to_telemetry_conversion:
+      enabled: true
+
+  # Logs → Loki.
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+
+  debug:
+    verbosity: basic
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [otlp/jaeger]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [prometheus]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, batch, resource]
+      exporters: [loki]

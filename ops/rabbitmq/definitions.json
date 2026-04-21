@@ -1,0 +1,159 @@
+{
+  "rabbit_version": "3.13.0",
+  "users": [
+    {
+      "name": "smartclinic",
+      "password": "smartclinic",
+      "tags": "administrator"
+    }
+  ],
+  "vhosts": [
+    { "name": "/" }
+  ],
+  "permissions": [
+    {
+      "user": "smartclinic",
+      "vhost": "/",
+      "configure": ".*",
+      "write": ".*",
+      "read": ".*"
+    }
+  ],
+  "policies": [
+    {
+      "vhost": "/",
+      "name": "ttl-and-max-length",
+      "pattern": "^smartclinic\\.",
+      "apply-to": "queues",
+      "definition": {
+        "message-ttl": 86400000,
+        "max-length": 1000000
+      },
+      "priority": 0
+    }
+  ],
+  "exchanges": [
+    {
+      "name": "smartclinic.events",
+      "vhost": "/",
+      "type": "topic",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    },
+    {
+      "name": "smartclinic.events.dlx",
+      "vhost": "/",
+      "type": "fanout",
+      "durable": true,
+      "auto_delete": false,
+      "internal": false,
+      "arguments": {}
+    }
+  ],
+  "queues": [
+    {
+      "name": "smartclinic.events.dlq",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": {}
+    },
+
+    {
+      "name": "patient_identity.events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "smartclinic.events.dlx", "x-queue-type": "classic" }
+    },
+
+    {
+      "name": "scheduling.events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "smartclinic.events.dlx", "x-queue-type": "classic" }
+    },
+
+    {
+      "name": "clinical.events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "smartclinic.events.dlx", "x-queue-type": "classic" }
+    },
+
+    {
+      "name": "pharmacy.clinical.events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "smartclinic.events.dlx", "x-queue-type": "classic" }
+    },
+    {
+      "name": "pharmacy.patient.events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "smartclinic.events.dlx", "x-queue-type": "classic" }
+    },
+
+    {
+      "name": "laboratory.clinical.events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "smartclinic.events.dlx", "x-queue-type": "classic" }
+    },
+
+    {
+      "name": "billing.clinical.events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "smartclinic.events.dlx", "x-queue-type": "classic" }
+    },
+    {
+      "name": "billing.laboratory.events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "smartclinic.events.dlx", "x-queue-type": "classic" }
+    },
+
+    {
+      "name": "saga.all.events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "smartclinic.events.dlx", "x-queue-type": "classic" }
+    }
+  ],
+  "bindings": [
+    { "source": "smartclinic.events.dlx", "vhost": "/", "destination": "smartclinic.events.dlq",    "destination_type": "queue", "routing_key": "",                                               "arguments": {} },
+
+    { "source": "smartclinic.events", "vhost": "/", "destination": "patient_identity.events",        "destination_type": "queue", "routing_key": "patient.#",                                     "arguments": {} },
+
+    { "source": "smartclinic.events", "vhost": "/", "destination": "scheduling.events",              "destination_type": "queue", "routing_key": "scheduling.#",                                  "arguments": {} },
+
+    { "source": "smartclinic.events", "vhost": "/", "destination": "clinical.events",                "destination_type": "queue", "routing_key": "clinical.#",                                    "arguments": {} },
+
+    { "source": "smartclinic.events", "vhost": "/", "destination": "pharmacy.clinical.events",       "destination_type": "queue", "routing_key": "clinical.encounter.prescription_issued.v1",    "arguments": {} },
+    { "source": "smartclinic.events", "vhost": "/", "destination": "pharmacy.patient.events",        "destination_type": "queue", "routing_key": "patient.#",                                    "arguments": {} },
+
+    { "source": "smartclinic.events", "vhost": "/", "destination": "laboratory.clinical.events",     "destination_type": "queue", "routing_key": "clinical.encounter.lab_order_placed.v1",       "arguments": {} },
+
+    { "source": "smartclinic.events", "vhost": "/", "destination": "billing.clinical.events",        "destination_type": "queue", "routing_key": "clinical.encounter.closed.v1",                 "arguments": {} },
+    { "source": "smartclinic.events", "vhost": "/", "destination": "billing.laboratory.events",      "destination_type": "queue", "routing_key": "laboratory.order.results_available.v1",        "arguments": {} },
+
+    { "source": "smartclinic.events", "vhost": "/", "destination": "saga.all.events",                "destination_type": "queue", "routing_key": "scheduling.appointment.checked_in.v1",         "arguments": {} },
+    { "source": "smartclinic.events", "vhost": "/", "destination": "saga.all.events",                "destination_type": "queue", "routing_key": "scheduling.appointment.cancelled.v1",          "arguments": {} },
+    { "source": "smartclinic.events", "vhost": "/", "destination": "saga.all.events",                "destination_type": "queue", "routing_key": "clinical.#",                                   "arguments": {} },
+    { "source": "smartclinic.events", "vhost": "/", "destination": "saga.all.events",                "destination_type": "queue", "routing_key": "laboratory.order.results_available.v1",        "arguments": {} },
+    { "source": "smartclinic.events", "vhost": "/", "destination": "saga.all.events",                "destination_type": "queue", "routing_key": "billing.invoice.issued.v1",                    "arguments": {} },
+    { "source": "smartclinic.events", "vhost": "/", "destination": "saga.all.events",                "destination_type": "queue", "routing_key": "billing.invoice.payment_recorded.v1",          "arguments": {} },
+    { "source": "smartclinic.events", "vhost": "/", "destination": "saga.all.events",                "destination_type": "queue", "routing_key": "billing.invoice.voided.v1",                    "arguments": {} }
+  ]
+}

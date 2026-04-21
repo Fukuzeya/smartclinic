@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -c ' *)",
+      "Bash(docker compose *)",
+      "Bash(python -c \"import sys,json; logs=json.load\\(sys.stdin\\); [print\\(l['Output'][:300]\\) for l in logs[-3:]]\")"
+    ]
+  }
+}

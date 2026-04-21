@@ -1,0 +1,1 @@
+"""Laboratory domain layer."""

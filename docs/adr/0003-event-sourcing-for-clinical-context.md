@@ -1,0 +1,87 @@
+# ADR-0003 — Event Sourcing for the Clinical context
+
+- Status: Accepted
+- Date: 2026-04-10
+- Deciders: TARUVINGA, KATONDO, FUKUZEYA
+- Tags: persistence, core-domain, clinical
+
+## Context and Problem Statement
+
+The Clinical context is the core domain and holds the medical record.
+The record has two properties no CRUD schema gives for free:
+
+1. **Full auditability.** Who changed what, when, and why, must be
+   reconstructible years later. Medical records have medico-legal
+   weight and, under POPIA / HIPAA-equivalent regimes, deletion is
+   explicitly restricted.
+2. **Temporal query.** "What did the doctor know at 14:03 on
+   2024-08-15 when they prescribed X?" is a real question. A CRUD
+   row cannot answer it; only the history of state can.
+
+## Decision Drivers
+
+- Medico-legal auditability.
+- Temporal / as-of queries.
+- The proposal commits to demonstrating Event Sourcing.
+- Our hash-chained tamper-evident extension (ADR-0012) requires an
+  append-only event log anyway.
+
+## Considered Options
+
+1. **CRUD with audit tables** (temporal tables or application-level
+   audit log).
+2. **Event Sourcing** — aggregates persisted as immutable event streams.
+3. **Bitemporal modelling** (SQL:2011-style application- and
+   system-time).
+
+## Decision Outcome
+
+Chosen option: **Option 2 — Event Sourcing**.
+
+### Positive Consequences
+- State is a projection of events → by construction we have *every*
+  historical fact, not just the last one.
+- Events are the publication format on the bus (ADR-0008); ES collapses
+  persistence and publication into one shape.
+- Enables hash-chained tamper evidence (ADR-0012) almost for free.
+- Debugging and forensic replay are trivial.
+
+### Negative Consequences
+- **Querying is harder** — we cannot SELECT against aggregate state.
+  Mitigated by CQRS (ADR-0004): a separate read-model database
+  materialised by projections.
+- **Schema evolution** of events is non-trivial. Mitigated by
+  versioned event types (`*.v1`, `*.v2`) and upcasters on replay.
+- **Training cost** for the team — real but acceptable given the
+  marking scheme explicitly rewards this pattern.
+- **Storage growth** is unbounded in principle. Mitigated by
+  snapshots (Phase 4 design) and pragmatic retention on projections.
+
+## Pros and Cons of the Options
+
+### CRUD with audit tables
+- Good, because well-understood, cheap to query, cheap to train on.
+- Bad, because audit tables drift from truth — a malicious or buggy
+  update path can change state without logging.
+- Bad, because reconstructing *intent* (why) from a diff is hard.
+
+### Event Sourcing
+- Good, because the log *is* the truth; projections are subordinate.
+- Good, because perfectly composable with domain events on the bus.
+- Bad, because query complexity shifts to the read-side.
+
+### Bitemporal
+- Good, because SQL-native and queryable.
+- Bad, because no commodity ORM gives the pattern ergonomically.
+- Bad, because intent / cause still isn't captured — only state at time.
+
+## Scope
+
+Event Sourcing is **applied only to the Clinical context**. The other
+five contexts use CRUD + outbox. This is deliberate: ES is expensive
+and the rest of the domain does not demand it.
+
+## Links
+- ADR-0002, ADR-0004, ADR-0009, ADR-0012.
+- Fowler, "Event Sourcing" — <https://martinfowler.com/eaaDev/EventSourcing.html>.
+- Vernon 2013, *Implementing Domain-Driven Design*, ch. 8.

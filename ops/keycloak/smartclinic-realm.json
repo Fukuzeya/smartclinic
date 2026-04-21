@@ -1,0 +1,238 @@
+{
+  "realm": "smartclinic",
+  "displayName": "SmartClinic",
+  "displayNameHtml": "<strong>SmartClinic</strong>",
+  "enabled": true,
+  "sslRequired": "none",
+  "registrationAllowed": false,
+  "loginWithEmailAllowed": true,
+  "duplicateEmailsAllowed": false,
+  "resetPasswordAllowed": true,
+  "editUsernameAllowed": false,
+  "bruteForceProtected": true,
+  "permanentLockout": false,
+  "maxFailureWaitSeconds": 900,
+  "minimumQuickLoginWaitSeconds": 60,
+  "waitIncrementSeconds": 60,
+  "quickLoginCheckMilliSeconds": 1000,
+  "maxDeltaTimeSeconds": 43200,
+  "failureFactor": 5,
+  "defaultRole": {
+    "name": "default-roles-smartclinic",
+    "description": "${role_default-roles}",
+    "composite": true,
+    "clientRole": false,
+    "containerId": "smartclinic"
+  },
+  "accessTokenLifespan": 900,
+  "accessTokenLifespanForImplicitFlow": 900,
+  "ssoSessionIdleTimeout": 1800,
+  "ssoSessionMaxLifespan": 36000,
+  "offlineSessionIdleTimeout": 2592000,
+  "refreshTokenMaxReuse": 0,
+  "revokeRefreshToken": true,
+  "passwordPolicy": "",
+  "otpPolicyType": "totp",
+  "otpPolicyAlgorithm": "HmacSHA1",
+  "otpPolicyDigits": 6,
+  "otpPolicyLookAheadWindow": 1,
+  "otpPolicyPeriod": 30,
+
+  "roles": {
+    "realm": [
+      {
+        "name": "receptionist",
+        "description": "Front-desk staff: registers patients and schedules appointments.",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "smartclinic"
+      },
+      {
+        "name": "doctor",
+        "description": "Licensed medical practitioner: runs encounters, issues prescriptions and lab orders.",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "smartclinic"
+      },
+      {
+        "name": "pharmacist",
+        "description": "Dispenses prescriptions; evaluates interaction specifications.",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "smartclinic"
+      },
+      {
+        "name": "accounts",
+        "description": "Finance staff: reconciles bills and manages receivables.",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "smartclinic"
+      },
+      {
+        "name": "lab_technician",
+        "description": "Laboratory staff: fulfils lab orders and records results.",
+        "composite": false,
+        "clientRole": false,
+        "containerId": "smartclinic"
+      }
+    ]
+  },
+
+  "clients": [
+    {
+      "clientId": "smartclinic-api",
+      "name": "SmartClinic Backend API",
+      "description": "Back-end confidential client for all FastAPI bounded-context services.",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": true,
+      "serviceAccountsEnabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "smartclinic-api-secret",
+      "redirectUris": [
+        "http://localhost:4200/*",
+        "http://localhost:8080/*"
+      ],
+      "webOrigins": [
+        "http://localhost:4200",
+        "http://localhost:8080"
+      ],
+      "attributes": {
+        "access.token.lifespan": "900",
+        "use.refresh.tokens": "true"
+      },
+      "protocolMappers": [
+        {
+          "name": "realm roles",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-realm-role-mapper",
+          "consentRequired": false,
+          "config": {
+            "multivalued": "true",
+            "userinfo.token.claim": "true",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "realm_access.roles",
+            "jsonType.label": "String"
+          }
+        },
+        {
+          "name": "email",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-usermodel-attribute-mapper",
+          "consentRequired": false,
+          "config": {
+            "userinfo.token.claim": "true",
+            "user.attribute": "email",
+            "id.token.claim": "true",
+            "access.token.claim": "true",
+            "claim.name": "email",
+            "jsonType.label": "String"
+          }
+        }
+      ]
+    },
+    {
+      "clientId": "smartclinic-web",
+      "name": "SmartClinic Angular SPA",
+      "description": "Public client for the Angular front-end (PKCE authorization code flow).",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": true,
+      "bearerOnly": false,
+      "standardFlowEnabled": true,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": false,
+      "redirectUris": [
+        "http://localhost:4200/*"
+      ],
+      "webOrigins": [
+        "http://localhost:4200",
+        "+"
+      ],
+      "attributes": {
+        "pkce.code.challenge.method": "S256",
+        "access.token.lifespan": "900"
+      },
+      "protocolMappers": [
+        {
+          "name": "smartclinic-api-audience",
+          "protocol": "openid-connect",
+          "protocolMapper": "oidc-audience-mapper",
+          "consentRequired": false,
+          "config": {
+            "id.token.claim": "false",
+            "access.token.claim": "true",
+            "included.custom.audience": "smartclinic-api"
+          }
+        }
+      ]
+    }
+  ],
+
+  "users": [
+    {
+      "username": "doctor1",
+      "email": "doctor1@smartclinic.local",
+      "firstName": "Tendai",
+      "lastName": "Moyo",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "doctor1", "temporary": false }
+      ],
+      "realmRoles": ["doctor"]
+    },
+    {
+      "username": "recep1",
+      "email": "recep1@smartclinic.local",
+      "firstName": "Ruva",
+      "lastName": "Chigumba",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "recep1", "temporary": false }
+      ],
+      "realmRoles": ["receptionist"]
+    },
+    {
+      "username": "pharm1",
+      "email": "pharm1@smartclinic.local",
+      "firstName": "Farai",
+      "lastName": "Nyathi",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "pharm1", "temporary": false }
+      ],
+      "realmRoles": ["pharmacist"]
+    },
+    {
+      "username": "acct1",
+      "email": "acct1@smartclinic.local",
+      "firstName": "Chipo",
+      "lastName": "Banda",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "acct1", "temporary": false }
+      ],
+      "realmRoles": ["accounts"]
+    },
+    {
+      "username": "lab1",
+      "email": "lab1@smartclinic.local",
+      "firstName": "Blessing",
+      "lastName": "Mutasa",
+      "enabled": true,
+      "emailVerified": true,
+      "credentials": [
+        { "type": "password", "value": "lab1", "temporary": false }
+      ],
+      "realmRoles": ["lab_technician"]
+    }
+  ]
+}

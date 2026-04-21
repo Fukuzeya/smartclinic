@@ -1,0 +1,1 @@
+"""Laboratory bounded context."""

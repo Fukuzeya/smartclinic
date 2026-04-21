@@ -1,0 +1,123 @@
+# SmartClinic monorepo — uv workspace root.
+#
+# Individual packages live under libs/ (libraries) and services/ (deployable
+# FastAPI applications, one per bounded context). Each is its own uv workspace
+# member with its own pyproject.toml; this root file only declares the
+# workspace and the tooling configuration shared across all members.
+
+[project]
+name = "smartclinic"
+version = "0.1.0"
+description = "SmartClinic — Advanced DDD clinic management platform for Zimbabwe"
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "UNLICENSED" }
+authors = [
+    { name = "Taruvinga, Katondo, Fukuzeya" },
+]
+
+[tool.uv.workspace]
+members = [
+    "libs/shared_kernel",
+    "services/patient_identity",
+    "services/scheduling",
+    "services/clinical",
+    "services/pharmacy",
+    "services/laboratory",
+    "services/billing",
+    "services/saga_orchestrator",
+]
+
+[tool.uv]
+# Dev-only dependencies for linting, typing, testing from the workspace root.
+dev-dependencies = [
+    "ruff>=0.6.9",
+    "mypy>=1.11.2",
+    "pytest>=8.3.3",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=5.0.0",
+    "pre-commit>=3.8.0",
+    "testcontainers[postgres,rabbitmq]>=4.8.1",
+    "httpx>=0.27.2",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["libs/shared_kernel/src", "services"]
+extend-exclude = [".venv", "build", "dist"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "N",   # pep8-naming
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+    "ASYNC", # flake8-async
+    "RUF", # ruff-specific rules
+    "TID", # flake8-tidy-imports
+    "PL",  # pylint
+]
+ignore = [
+    "PLR0913", # too many arguments (common for handler constructors)
+    "PLR2004", # magic value comparison (often fine in tests)
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["PLR2004", "S101"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["shared_kernel"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_any_generics = true
+disallow_untyped_decorators = true
+no_implicit_reexport = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = [
+    "aio_pika.*",
+    "testcontainers.*",
+]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra --strict-markers --strict-config"
+testpaths = ["libs", "services"]
+asyncio_mode = "auto"
+filterwarnings = [
+    "error",
+    "ignore::DeprecationWarning:aio_pika.*",
+]
+markers = [
+    "integration: marks tests that require docker-compose services",
+    "fitness: architectural fitness-function tests",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["libs/shared_kernel/src", "services"]
+omit = ["*/tests/*", "*/__init__.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 85
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if TYPE_CHECKING:",
+    "\\.\\.\\.",
+]

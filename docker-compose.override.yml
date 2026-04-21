@@ -1,0 +1,93 @@
+# SmartClinic — developer-local overrides.
+#
+# Picked up automatically by `docker compose up`. Two things it does:
+#   1. Bind-mounts the source tree so code changes are visible instantly.
+#   2. Switches uvicorn to --reload mode.
+#
+# NOTE: uvicorn is called directly (not via `uv run`) because the runtime
+# image activates the venv via PATH; `uv` itself is not present at runtime.
+
+services:
+  patient_identity:
+    volumes:
+      - ./libs/shared_kernel:/app/libs/shared_kernel
+      - ./services/patient_identity:/app/services/patient_identity
+    environment:
+      LOG_LEVEL: DEBUG
+    command: >
+      uvicorn patient_identity.main:app
+      --host 0.0.0.0 --port 8000
+      --reload --reload-dir /app/libs/shared_kernel/src
+      --reload-dir /app/services/patient_identity/src
+
+  scheduling:
+    volumes:
+      - ./libs/shared_kernel:/app/libs/shared_kernel
+      - ./services/scheduling:/app/services/scheduling
+    environment:
+      LOG_LEVEL: DEBUG
+    command: >
+      uvicorn scheduling.main:app
+      --host 0.0.0.0 --port 8000
+      --reload --reload-dir /app/libs/shared_kernel/src
+      --reload-dir /app/services/scheduling/src
+
+  clinical:
+    volumes:
+      - ./libs/shared_kernel:/app/libs/shared_kernel
+      - ./services/clinical:/app/services/clinical
+    environment:
+      LOG_LEVEL: DEBUG
+    command: >
+      uvicorn clinical.main:app
+      --host 0.0.0.0 --port 8000
+      --reload --reload-dir /app/libs/shared_kernel/src
+      --reload-dir /app/services/clinical/src
+
+  pharmacy:
+    volumes:
+      - ./libs/shared_kernel:/app/libs/shared_kernel
+      - ./services/pharmacy:/app/services/pharmacy
+    environment:
+      LOG_LEVEL: DEBUG
+    command: >
+      uvicorn pharmacy.main:app
+      --host 0.0.0.0 --port 8000
+      --reload --reload-dir /app/libs/shared_kernel/src
+      --reload-dir /app/services/pharmacy/src
+
+  laboratory:
+    volumes:
+      - ./libs/shared_kernel:/app/libs/shared_kernel
+      - ./services/laboratory:/app/services/laboratory
+    environment:
+      LOG_LEVEL: DEBUG
+    command: >
+      uvicorn laboratory.main:app
+      --host 0.0.0.0 --port 8000
+      --reload --reload-dir /app/libs/shared_kernel/src
+      --reload-dir /app/services/laboratory/src
+
+  billing:
+    volumes:
+      - ./libs/shared_kernel:/app/libs/shared_kernel
+      - ./services/billing:/app/services/billing
+    environment:
+      LOG_LEVEL: DEBUG
+    command: >
+      uvicorn billing.main:app
+      --host 0.0.0.0 --port 8000
+      --reload --reload-dir /app/libs/shared_kernel/src
+      --reload-dir /app/services/billing/src
+
+  saga_orchestrator:
+    volumes:
+      - ./libs/shared_kernel:/app/libs/shared_kernel
+      - ./services/saga_orchestrator:/app/services/saga_orchestrator
+    environment:
+      LOG_LEVEL: DEBUG
+    command: >
+      uvicorn saga_orchestrator.main:app
+      --host 0.0.0.0 --port 8000
+      --reload --reload-dir /app/libs/shared_kernel/src
+      --reload-dir /app/services/saga_orchestrator/src
