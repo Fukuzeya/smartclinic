@@ -54,16 +54,24 @@ services:
     networks: [smartclinic]
     logging: *default-logging
 
-  # ── Core infra: drop public ports in prod (internal only) ──────────────
+  # -- Core infra: drop public ports in prod (internal only) --------------
+  # Also cap CPU limits at 1.0 since small Linode VPSes may only have 1 vCPU
+  # (Docker refuses to start a container whose cpus limit > host CPU count).
   postgres:
     image: postgres:16-alpine
     ports: !reset []
     <<: *app-common
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 768M }
 
   rabbitmq:
     image: rabbitmq:3.13-management-alpine
     ports: !reset []
     <<: *app-common
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 512M }
 
   keycloak:
     ports: !reset []
@@ -81,6 +89,9 @@ services:
       KC_PROXY: edge
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+    deploy:
+      resources:
+        limits: { cpus: "1.0", memory: 768M }
 
   # ── Observability (optional — enable with `--profile obs`) ─────────────
   jaeger:
