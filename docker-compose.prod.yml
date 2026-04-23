@@ -109,8 +109,10 @@ services:
     ports: !reset []
     <<: *app-common
 
+  # otel-collector stays always-on (not in obs profile) because every app
+  # service has depends_on: otel-collector. ~50MB footprint is negligible.
+  # When the obs profile is off, spans/metrics are buffered then dropped.
   otel-collector:
-    profiles: ["obs"]
     ports: !reset []
     <<: *app-common
 
