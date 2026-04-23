@@ -141,6 +141,5 @@ def _build_jwt_validator(settings: SharedSettings) -> KeycloakJwtValidator | Non
         jwks_url=str(settings.oidc_jwks_url),
         audience=settings.oidc_audience,
         client_id=settings.oidc_client_id,
-        additional_issuers=settings.oidc_additional_issuers or None,
         cache_ttl_seconds=settings.oidc_jwks_cache_ttl_seconds,
     )

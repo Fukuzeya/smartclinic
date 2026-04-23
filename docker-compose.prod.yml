@@ -26,14 +26,11 @@ x-app-common: &app-common
   restart: unless-stopped
   logging: *default-logging
 
-# In prod Keycloak runs with KC_HTTP_RELATIVE_PATH=/auth in start-dev mode.
-# Browser tokens arrive via Caddy (iss=http://<IP>/auth/realms/smartclinic).
-# Internal tokens (e.g. seeder) go direct (iss=http://keycloak:8080/auth/...).
-# OIDC_ADDITIONAL_ISSUERS accepts both so the seeder and browser both work.
+# In prod Keycloak runs with KC_HTTP_RELATIVE_PATH=/auth, so every internal
+# URL must include the /auth prefix.  The public issuer uses the Caddy path.
 x-oidc-prod: &oidc-prod
   OIDC_ISSUER: http://${DEPLOY_HOST}/auth/realms/smartclinic
   OIDC_JWKS_URL: http://keycloak:8080/auth/realms/smartclinic/protocol/openid-connect/certs
-  OIDC_ADDITIONAL_ISSUERS: '["http://keycloak:8080/auth/realms/smartclinic"]'
 
 services:
   # ── Reverse proxy (plain HTTP — IP-hosted demo) ────────────────────────

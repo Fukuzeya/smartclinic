@@ -67,15 +67,10 @@ class KeycloakJwtValidator:
         jwks_url: str,
         audience: str,
         client_id: str,
-        additional_issuers: list[str] | None = None,
         cache_ttl_seconds: int = 300,
         http_timeout_seconds: float = 5.0,
     ) -> None:
         self._issuer = issuer
-        # python-jose accepts a str *or* list[str] for the issuer check.
-        self._allowed_issuers: str | list[str] = (
-            [issuer] + additional_issuers if additional_issuers else issuer
-        )
         self._jwks_url = jwks_url
         self._audience = audience
         self._client_id = client_id
@@ -109,7 +104,7 @@ class KeycloakJwtValidator:
                 key,
                 algorithms=[header.get("alg", "RS256")],
                 audience=self._audience,
-                issuer=self._allowed_issuers,
+                issuer=self._issuer,
                 options={"verify_at_hash": False},
             )
         except ExpiredSignatureError as exc:

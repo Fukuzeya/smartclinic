@@ -58,7 +58,6 @@ class SharedSettings(BaseSettings):
     oidc_audience: str = "smartclinic-api"
     oidc_client_id: str = "smartclinic-api"
     oidc_client_secret: SecretStr | None = None
-    oidc_additional_issuers: list[str] = Field(default_factory=list)
     oidc_jwks_cache_ttl_seconds: int = 300
 
     # --- outbox relay ----------------------------------------------------
