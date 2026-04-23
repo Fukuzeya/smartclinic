@@ -424,8 +424,7 @@ def main():
     sched_conn.autocommit = True
     cw_conn = _conn("clinical_write", "clinical", "clinical")
     cw_conn.autocommit = True
-    cr_conn = _conn("clinical_read", "clinical", "clinical")
-    cr_conn.autocommit = True
+    cr_conn = cw_conn  # read model lives in clinical_write (no separate read DB)
     pharm_conn = _conn("pharmacy")
     pharm_conn.autocommit = True
     lab_conn = _conn("laboratory")
@@ -757,7 +756,7 @@ def main():
     print("  → Complete.")
 
     # ── Cleanup ───────────────────────────────────────────────
-    for c in (pi_conn, sched_conn, cw_conn, cr_conn, pharm_conn, lab_conn, bill_conn, saga_conn):
+    for c in (pi_conn, sched_conn, cw_conn, pharm_conn, lab_conn, bill_conn, saga_conn):
         c.close()
 
     # ── Summary ───────────────────────────────────────────────
