@@ -68,6 +68,21 @@ class VitalSigns(ValueObject):
     height_cm: Decimal | None = None
     recorded_by: str                                  # Keycloak subject
 
+    # Domain events persist vitals as JSON; Decimal fields round-trip through
+    # strings. Strict mode rejects the coercion, so coerce pre-validate.
+    @field_validator(
+        "temperature_celsius",
+        "oxygen_saturation_pct",
+        "weight_kg",
+        "height_cm",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_decimal(cls, v: object) -> object:
+        if isinstance(v, (str, int, float)):
+            return Decimal(str(v))
+        return v
+
     @model_validator(mode="after")
     def _at_least_one_measurement(self) -> VitalSigns:
         measurements = [

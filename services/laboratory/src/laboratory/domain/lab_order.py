@@ -70,7 +70,7 @@ class LabOrder(AggregateRoot[LabOrderId]):
         instance._results: list[LabResult] = []
         instance._received_at = datetime.now(UTC)
         instance._record(LabOrderReceivedV1.build(
-            order_id=uuid.UUID(str(order_id)),
+            order_id=order_id.value,
             aggregate_version=instance._next_version(),
             patient_id=patient_id,
             encounter_id=encounter_id,
@@ -109,7 +109,7 @@ class LabOrder(AggregateRoot[LabOrderId]):
         self._status = OrderStatus.SAMPLE_COLLECTED
         self._sample_type = sample_type
         self._record(SampleCollectedV1.build(
-            order_id=uuid.UUID(str(self.id)),
+            order_id=self.id.value,
             aggregate_version=self._next_version(),
             sample_type=sample_type.value,
             collected_by=collected_by,
@@ -127,7 +127,7 @@ class LabOrder(AggregateRoot[LabOrderId]):
 
         result_payload = result.model_dump(mode="json")
         self._record(ResultRecordedV1.build(
-            order_id=uuid.UUID(str(self.id)),
+            order_id=self.id.value,
             aggregate_version=self._next_version(),
             result_payload=result_payload,
             is_critical=result.is_critical,
@@ -135,7 +135,7 @@ class LabOrder(AggregateRoot[LabOrderId]):
 
         if result.is_critical:
             self._record(CriticalResultAlertV1.build(
-                order_id=uuid.UUID(str(self.id)),
+                order_id=self.id.value,
                 aggregate_version=self._next_version(),
                 patient_id=self._patient_id,
                 test_code=result.test_code,
@@ -158,7 +158,7 @@ class LabOrder(AggregateRoot[LabOrderId]):
         self._status = OrderStatus.COMPLETED
         has_critical = any(r.is_critical for r in self._results)
         self._record(LabResultsAvailableV1.build(
-            order_id=uuid.UUID(str(self.id)),
+            order_id=self.id.value,
             aggregate_version=self._next_version(),
             patient_id=self._patient_id,
             encounter_id=self._encounter_id,
@@ -171,7 +171,7 @@ class LabOrder(AggregateRoot[LabOrderId]):
         self._assert_modifiable()
         self._status = OrderStatus.CANCELLED
         self._record(LabOrderCancelledV1.build(
-            order_id=uuid.UUID(str(self.id)),
+            order_id=self.id.value,
             aggregate_version=self._next_version(),
             reason=reason,
             cancelled_by=cancelled_by,

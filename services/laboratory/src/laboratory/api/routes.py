@@ -76,7 +76,7 @@ class CancelRequest(BaseModel):
 async def collect_sample(
     order_id: str, body: CollectSampleRequest, request: Request
 ) -> None:
-    principal = get_current_principal(request)
+    principal = await get_current_principal(request, request.headers.get("authorization"))
     await CollectSampleHandler(request.app.state.uow_factory).handle(
         CollectSampleCommand(
             order_id=LabOrderId.parse(order_id),
@@ -94,7 +94,7 @@ async def collect_sample(
 async def record_result(
     order_id: str, body: RecordResultRequest, request: Request
 ) -> None:
-    principal = get_current_principal(request)
+    principal = await get_current_principal(request, request.headers.get("authorization"))
     await RecordResultHandler(request.app.state.uow_factory).handle(
         RecordResultCommand(
             order_id=LabOrderId.parse(order_id),
@@ -118,7 +118,7 @@ async def record_result(
     dependencies=[Depends(require_role("lab_technician"))],
 )
 async def complete_order(order_id: str, request: Request) -> None:
-    principal = get_current_principal(request)
+    principal = await get_current_principal(request, request.headers.get("authorization"))
     await CompleteOrderHandler(request.app.state.uow_factory).handle(
         CompleteOrderCommand(
             order_id=LabOrderId.parse(order_id),
@@ -135,7 +135,7 @@ async def complete_order(order_id: str, request: Request) -> None:
 async def cancel_order(
     order_id: str, body: CancelRequest, request: Request
 ) -> None:
-    principal = get_current_principal(request)
+    principal = await get_current_principal(request, request.headers.get("authorization"))
     await CancelOrderHandler(request.app.state.uow_factory).handle(
         CancelOrderCommand(
             order_id=LabOrderId.parse(order_id),
@@ -189,11 +189,12 @@ async def list_orders(
     dependencies=[Depends(require_any_role("lab_technician", "doctor", "receptionist"))],
 )
 async def get_order(order_id: str, request: Request) -> dict:
+    oid = LabOrderId.parse(order_id)
     session_factory = request.app.state.session_factory
     async with session_factory() as session:
         row = (await session.execute(
             select(LabOrderRow).where(
-                LabOrderRow.order_id == uuid.UUID(order_id)
+                LabOrderRow.order_id == oid.value
             )
         )).scalar_one_or_none()
     if row is None:
@@ -206,11 +207,12 @@ async def get_order(order_id: str, request: Request) -> dict:
     dependencies=[Depends(require_any_role("lab_technician", "doctor"))],
 )
 async def get_results(order_id: str, request: Request) -> dict:
+    oid = LabOrderId.parse(order_id)
     session_factory = request.app.state.session_factory
     async with session_factory() as session:
         row = (await session.execute(
             select(LabOrderRow).where(
-                LabOrderRow.order_id == uuid.UUID(order_id)
+                LabOrderRow.order_id == oid.value
             )
         )).scalar_one_or_none()
     if row is None:

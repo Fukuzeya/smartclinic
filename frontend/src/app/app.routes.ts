@@ -1,6 +1,6 @@
 import { Routes } from '@angular/router';
 import { ShellComponent } from './core/layout/shell.component';
-import { authGuard } from './core/auth/auth.guard';
+import { authGuard, roleGuard } from './core/auth/auth.guard';
 
 export const routes: Routes = [
   {
@@ -16,31 +16,43 @@ export const routes: Routes = [
       },
       {
         path: 'patients',
+        canActivate: [roleGuard('receptionist', 'doctor')],
         loadChildren: () =>
           import('./features/patients/patients.routes').then(m => m.PATIENT_ROUTES),
       },
       {
         path: 'appointments',
+        canActivate: [roleGuard('receptionist', 'doctor')],
         loadChildren: () =>
           import('./features/appointments/appointments.routes').then(m => m.APPOINTMENT_ROUTES),
       },
       {
         path: 'encounters',
+        canActivate: [roleGuard('doctor')],
         loadChildren: () =>
           import('./features/encounters/encounters.routes').then(m => m.ENCOUNTER_ROUTES),
       },
       {
         path: 'lab-orders',
+        canActivate: [roleGuard('lab_technician', 'doctor')],
         loadChildren: () =>
           import('./features/lab-orders/lab-orders.routes').then(m => m.LAB_ORDER_ROUTES),
       },
       {
         path: 'prescriptions',
+        canActivate: [roleGuard('pharmacist', 'doctor')],
         loadChildren: () =>
           import('./features/prescriptions/prescriptions.routes').then(m => m.PRESCRIPTION_ROUTES),
       },
       {
+        path: 'stock',
+        canActivate: [roleGuard('pharmacist')],
+        loadChildren: () =>
+          import('./features/stock/stock.routes').then(m => m.STOCK_ROUTES),
+      },
+      {
         path: 'invoices',
+        canActivate: [roleGuard('accounts', 'receptionist')],
         loadChildren: () =>
           import('./features/invoices/invoices.routes').then(m => m.INVOICE_ROUTES),
       },

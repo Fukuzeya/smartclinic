@@ -6,7 +6,7 @@ import uuid
 from decimal import Decimal
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,7 +30,7 @@ class SqlAlchemyPrescriptionRepository:
         row = (
             await self._session.execute(
                 select(PrescriptionRow).where(
-                    PrescriptionRow.prescription_id == uuid.UUID(str(prescription_id))
+                    PrescriptionRow.prescription_id == prescription_id.value
                 )
             )
         ).scalar_one_or_none()
@@ -39,14 +39,16 @@ class SqlAlchemyPrescriptionRepository:
         return _row_to_aggregate(row)
 
     async def add(self, prescription: Prescription) -> None:
+        # Pre-compute post-commit version — UoW bumps after flush.
+        final_version = prescription.version + len(prescription.peek_domain_events())
         row = PrescriptionRow(
-            prescription_id=uuid.UUID(str(prescription.id)),
+            prescription_id=prescription.id.value,
             encounter_id=prescription.encounter_id,
             patient_id=prescription.patient_id,
             issued_by="",  # Set by handler from event
             lines=[ln.model_dump(mode="json") for ln in prescription.lines],
             status=prescription.status.value,
-            version=prescription.version,
+            version=final_version,
         )
         self._session.add(row)
         await self._session.flush()
@@ -55,7 +57,7 @@ class SqlAlchemyPrescriptionRepository:
         row = (
             await self._session.execute(
                 select(PrescriptionRow).where(
-                    PrescriptionRow.prescription_id == uuid.UUID(str(prescription.id))
+                    PrescriptionRow.prescription_id == prescription.id.value
                 )
             )
         ).scalar_one_or_none()
@@ -83,7 +85,7 @@ class SqlAlchemyStockRepository:
         rows = (
             await self._session.execute(
                 select(DrugStockRow).where(
-                    DrugStockRow.drug_name.in_(upper_names)
+                    func.upper(DrugStockRow.drug_name).in_(upper_names)
                 )
             )
         ).scalars().all()

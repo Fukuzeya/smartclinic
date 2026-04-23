@@ -69,7 +69,6 @@ class Identifier(ValueObject):
     model_config = ConfigDict(
         frozen=True,
         extra="forbid",
-        strict=True,
         populate_by_name=True,
     )
 
@@ -99,8 +98,20 @@ class Identifier(ValueObject):
 
     @classmethod
     def parse(cls, raw: str | uuid.UUID) -> Self:
-        """Parse from a string or UUID; raises ``ValueError`` on garbage."""
-        return cls(value=raw if isinstance(raw, uuid.UUID) else uuid.UUID(str(raw)))
+        """Parse from a string or UUID; raises ``ValueError`` on garbage.
+
+        Accepts both bare UUIDs (``"01234…"``) and the prefixed form produced
+        by :py:meth:`__str__` (``"pat_01234…"``). Stripping the own-prefix keeps
+        ``parse(str(id)) == id`` round-tripping true, so API paths that surface
+        ``str(id)`` to clients can accept the value back without special-casing.
+        """
+        if isinstance(raw, uuid.UUID):
+            return cls(value=raw)
+        text = str(raw)
+        own_prefix = f"{cls._prefix}_"
+        if text.startswith(own_prefix):
+            text = text[len(own_prefix):]
+        return cls(value=uuid.UUID(text))
 
     def __str__(self) -> str:
         return f"{self._prefix}_{self.value}"

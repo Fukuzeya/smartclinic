@@ -49,7 +49,7 @@ class SqlAlchemyEncounterRepository:
         rows = (
             await self._session.execute(
                 select(EventStoreRecord)
-                .where(EventStoreRecord.aggregate_id == uuid.UUID(str(encounter_id)))
+                .where(EventStoreRecord.aggregate_id == encounter_id.value)
                 .order_by(EventStoreRecord.sequence)
             )
         ).scalars().all()
@@ -76,7 +76,7 @@ class SqlAlchemyEncounterRepository:
         tail_row = (
             await self._session.execute(
                 select(EventStoreRecord.chain_hash, EventStoreRecord.sequence)
-                .where(EventStoreRecord.aggregate_id == uuid.UUID(str(encounter.id)))
+                .where(EventStoreRecord.aggregate_id == encounter.id.value)
                 .order_by(EventStoreRecord.sequence.desc())
                 .limit(1)
             )
@@ -95,7 +95,7 @@ class SqlAlchemyEncounterRepository:
                 )
                 record = EventStoreRecord(
                     id=event.event_id,
-                    aggregate_id=uuid.UUID(str(encounter.id)),
+                    aggregate_id=encounter.id.value,
                     aggregate_type=event.aggregate_type,
                     event_type=event.event_type,
                     sequence=next_seq,
@@ -128,7 +128,7 @@ class SqlAlchemyEncounterRepository:
         rows = (
             await self._session.execute(
                 select(EventStoreRecord)
-                .where(EventStoreRecord.aggregate_id == uuid.UUID(str(encounter_id)))
+                .where(EventStoreRecord.aggregate_id == encounter_id.value)
                 .order_by(EventStoreRecord.sequence)
             )
         ).scalars().all()

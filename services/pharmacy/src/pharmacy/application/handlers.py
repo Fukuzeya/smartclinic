@@ -27,6 +27,7 @@ from pharmacy.application.commands import (
     RejectPrescriptionCommand,
 )
 from pharmacy.domain.specifications import (
+    AllDrugsInStockSpecification,
     make_dispensable_specification,
     NoModerateDrugInteractionSpecification,
 )
@@ -89,11 +90,32 @@ class DispensePrescriptionHandler:
                 return {"outcome": "dispensed", "reasons": [], "warnings": warnings}
             else:
                 reasons = spec.reasons_for_failure(candidate)
-                prescription.reject(reasons=reasons, rejected_by=cmd.dispensed_by)
+                # Identify specifically which drugs triggered an OOS failure so
+                # the Saga Orchestrator can route a substitution-required compensation.
+                oos_spec = AllDrugsInStockSpecification()
+                out_of_stock_drugs = (
+                    oos_spec.reasons_for_failure(candidate)
+                    if not oos_spec.is_satisfied_by(candidate) else []
+                )
+                # Extract drug names from OOS reason strings for compact event payload
+                oos_drug_names = [
+                    name for name in candidate.drug_names
+                    if any(name.upper() in r.upper() for r in out_of_stock_drugs)
+                ]
+                prescription.reject(
+                    reasons=reasons,
+                    rejected_by=cmd.dispensed_by,
+                    out_of_stock_drugs=oos_drug_names,
+                )
                 await repo.save(prescription)
                 uow.register(prescription)
                 await uow.commit()
-                return {"outcome": "rejected", "reasons": reasons, "warnings": []}
+                return {
+                    "outcome": "rejected",
+                    "reasons": reasons,
+                    "out_of_stock_drugs": oos_drug_names,
+                    "warnings": [],
+                }
 
 
 class DispensePartialHandler:

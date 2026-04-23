@@ -86,3 +86,21 @@ class VoidEncounterCommand(BaseModel):
     encounter_id: EncounterId
     reason: str
     voided_by: str
+
+
+class DraftSOAPNoteCommand(BaseModel):
+    encounter_id: EncounterId
+    requested_by: str
+
+
+class ExplainDrugSafetyCommand(BaseModel):
+    encounter_id: EncounterId
+    drug_names: list[str]
+    spec_failure_reasons: list[str]
+    requested_by: str
+
+
+class RecordAIDecisionCommand(BaseModel):
+    suggestion_id: uuid.UUID
+    decision: str   # "accepted" | "discarded"
+    decided_by: str

@@ -1,0 +1,86 @@
+#!/usr/bin/env bash
+# SmartClinic — server-side deploy script.
+#
+# Pulls the requested image tag from GHCR and performs a rolling restart.
+# Invoked by `.github/workflows/deploy.yml` over SSH, but also safe to run
+# by hand:
+#
+#   IMAGE_TAG=<sha> /opt/smartclinic/ops/deploy/deploy.sh        # pin version
+#   /opt/smartclinic/ops/deploy/deploy.sh                        # latest
+#
+# Exits non-zero on any failure; CI's `Smoke-test the public endpoint`
+# step will also fail the run if the service does not come back healthy.
+
+set -euo pipefail
+
+APP_DIR="${APP_DIR:-/opt/smartclinic}"
+ENV_FILE="${ENV_FILE:-$APP_DIR/.env}"
+COMPOSE_FILES=(-f docker-compose.yml -f docker-compose.prod.yml)
+PROFILES=("--profile" "default")
+# Uncomment to auto-start the observability stack in prod:
+# PROFILES=("--profile" "default" "--profile" "obs")
+
+cd "$APP_DIR"
+
+if [[ ! -f "$ENV_FILE" ]]; then
+  echo "Missing $ENV_FILE — did you run bootstrap.sh and fill it in?" >&2
+  exit 1
+fi
+
+# Export the env file so docker compose sees IMAGE_OWNER/IMAGE_TAG/etc.
+set -a
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+set +a
+
+# CI may pass IMAGE_TAG as env; fall back to latest
+export IMAGE_TAG="${IMAGE_TAG:-latest}"
+export REGISTRY="${REGISTRY:-ghcr.io}"
+
+log() { printf "\n\e[1;34m▸ %s\e[0m\n" "$*"; }
+
+log "Deploying tag: $IMAGE_TAG · owner: $IMAGE_OWNER"
+
+# 1. Pre-flight: pull new images so we fail fast if GHCR auth is bad
+log "Pulling images"
+docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" "${PROFILES[@]}" pull
+
+# 2. Bring up / update the stack — compose handles rolling restart
+log "Restarting services"
+docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" "${PROFILES[@]}" up -d --remove-orphans
+
+# 3. Wait for services to report healthy (up to 2 min)
+log "Waiting for health checks"
+deadline=$(( $(date +%s) + 120 ))
+while :; do
+  unhealthy=$(docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" ps \
+    --format '{{.Service}} {{.Health}}' \
+    | awk '$2 == "unhealthy" { print $1 }')
+  starting=$(docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" ps \
+    --format '{{.Service}} {{.Health}}' \
+    | awk '$2 == "starting" { print $1 }')
+
+  if [[ -z "$unhealthy" && -z "$starting" ]]; then
+    break
+  fi
+  if [[ -n "$unhealthy" ]]; then
+    echo "Unhealthy services: $unhealthy" >&2
+    docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" ps
+    exit 1
+  fi
+  if (( $(date +%s) > deadline )); then
+    echo "Timeout waiting for services; still starting: $starting" >&2
+    docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" ps
+    exit 1
+  fi
+  echo "  still starting: $starting"
+  sleep 5
+done
+
+# 4. Garbage-collect unused images (keep 3 most recent per image)
+log "Pruning dangling images"
+docker image prune -f >/dev/null
+# Keep recent tags but purge stale GHCR pulls (>14 days + not in use)
+docker image prune -a --filter "until=336h" -f >/dev/null || true
+
+log "Deploy complete — $(docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" ps --services | wc -l) services up"

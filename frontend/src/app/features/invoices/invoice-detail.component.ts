@@ -1,9 +1,11 @@
 import { Component, inject, signal, input, OnInit } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { DatePipe, SlicePipe } from '@angular/common';
+import { DatePipe, SlicePipe, DecimalPipe } from '@angular/common';
+import { RouterLink } from '@angular/router';
 import { InvoiceService } from '../../shared/api/invoice.service';
 import { Invoice, InvoiceSummary } from '../../shared/models/invoice.model';
 import { AuthService } from '../../core/auth/auth.service';
+import { PatientNameCache } from '../../shared/services/patient-name-cache.service';
 
 const CHARGE_CATEGORIES = ['consultation', 'lab_test', 'medication', 'procedure', 'accommodation', 'other'];
 const PAYMENT_METHODS = ['cash', 'ecocash', 'zipit', 'insurance', 'bank_transfer', 'other'];
@@ -11,17 +13,23 @@ const PAYMENT_METHODS = ['cash', 'ecocash', 'zipit', 'insurance', 'bank_transfer
 @Component({
   selector: 'app-invoice-detail',
   standalone: true,
-  imports: [DatePipe, SlicePipe, ReactiveFormsModule],
+  imports: [DatePipe, SlicePipe, DecimalPipe, ReactiveFormsModule, RouterLink],
   template: `
     @if (loading()) {
       <div class="loading">Loading…</div>
+    } @else if (!invoice()) {
+      <div class="empty-state">
+        <h2>Invoice not found</h2>
+        <a routerLink="/invoices" class="link">← Back to invoices</a>
+      </div>
     } @else if (invoice()) {
       <div class="page-header">
         <div>
+          <a routerLink="/invoices" class="back-link">← Invoices</a>
           <h1 class="page-title">Invoice</h1>
-          <code style="font-size:.85rem;color:#64748b">{{ invoice()!.invoice_id }}</code>
+          <div style="font-size:0.9rem;color:var(--clr-gray-700);font-weight:600;margin-top:2px">{{ patientName() || 'Patient' }}</div>
         </div>
-        <span class="badge" [class]="statusClass(invoice()!.status)" style="font-size:.9rem;padding:6px 14px">
+        <span class="status-chip" [class]="'sc-' + invoice()!.status">
           {{ invoice()!.status.replace('_', ' ') }}
         </span>
       </div>
@@ -31,7 +39,7 @@ const PAYMENT_METHODS = ['cash', 'ecocash', 'zipit', 'insurance', 'bank_transfer
         <div class="card">
           <h3 class="card-title">Invoice Information</h3>
           <dl class="kv-list">
-            <dt>Patient</dt><dd><code>{{ invoice()!.patient_id }}</code></dd>
+            <dt>Patient</dt><dd>{{ patientName() || invoice()!.patient_id }}</dd>
             <dt>Encounter</dt><dd><code>{{ invoice()!.encounter_id }}</code></dd>
             <dt>Currency</dt><dd><strong>{{ invoice()!.currency }}</strong></dd>
             <dt>Created</dt><dd>{{ invoice()!.created_at | date:'dd MMM yyyy HH:mm' }}</dd>
@@ -117,7 +125,7 @@ const PAYMENT_METHODS = ['cash', 'ecocash', 'zipit', 'insurance', 'bank_transfer
                   <td>{{ ln.description }}</td>
                   <td>{{ ln.unit_price.currency }} {{ ln.unit_price.amount }}</td>
                   <td>{{ ln.quantity }}</td>
-                  <td><strong>{{ ln.unit_price.currency }} {{ (parseFloat(ln.unit_price.amount) * ln.quantity).toFixed(2) }}</strong></td>
+                  <td><strong>{{ ln.unit_price.currency }} {{ lineSubtotal(ln) }}</strong></td>
                 </tr>
               }
             </tbody>
@@ -149,20 +157,25 @@ const PAYMENT_METHODS = ['cash', 'ecocash', 'zipit', 'insurance', 'bank_transfer
     }
   `,
   styles: [`
+    .back-link{font-size:.8rem;color:var(--clr-brand);text-decoration:none}.back-link:hover{text-decoration:underline}
+    .status-chip{padding:6px 16px;border-radius:16px;font-size:.85rem;font-weight:600}
+    .sc-draft{background:#f1f5f9;color:#475569}.sc-issued{background:#dbeafe;color:#1e40af}
+    .sc-partially_paid{background:#fef3c7;color:#92400e}.sc-paid{background:#d1fae5;color:#065f46}
+    .sc-void{background:#fee2e2;color:#991b1b}
     .detail-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
     @media(max-width:768px){.detail-grid{grid-template-columns:1fr}}
-    .card-title{font-weight:600;color:#334155;margin-bottom:12px;font-size:.95rem}
-    .sub-title{font-size:.85rem;font-weight:600;color:#64748b;margin-bottom:8px;margin-top:0}
+    .card-title{font-weight:600;color:var(--clr-gray-700);margin-bottom:12px;font-size:.95rem}
+    .sub-title{font-size:.85rem;font-weight:600;color:var(--clr-gray-500);margin-bottom:8px;margin-top:0}
     .kv-list{display:grid;grid-template-columns:max-content 1fr;gap:4px 16px;font-size:.875rem}
-    .kv-list dt{color:#64748b;font-weight:500}
-    .kv-list dd{margin:0}
-    .balance-panel{margin-top:16px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden}
-    .balance-row{display:flex;justify-content:space-between;align-items:center;padding:8px 14px;font-size:.875rem;border-bottom:1px solid #f1f5f9}
+    .kv-list dt{color:var(--clr-gray-500);font-weight:500}
+    .kv-list dd{margin:0;color:var(--clr-gray-800)}
+    .balance-panel{margin-top:16px;border:1px solid var(--clr-gray-200);border-radius:8px;overflow:hidden}
+    .balance-row{display:flex;justify-content:space-between;align-items:center;padding:10px 16px;font-size:.875rem;border-bottom:1px solid var(--clr-gray-100)}
     .balance-row:last-child{border-bottom:none}
-    .balance-due{background:#fafafa;font-weight:600}
-    .amount{font-family:monospace;font-size:.9rem}
+    .balance-due{background:var(--clr-gray-50);font-weight:700}
+    .amount{font-family:monospace;font-size:.9rem;font-weight:600}
     .amount.paid{color:#10b981}
-    .amount.zero{color:#94a3b8}
+    .amount.zero{color:var(--clr-gray-400)}
     .inline-form{display:flex;flex-direction:column;gap:8px}
     .form-row{display:flex;gap:8px}
     .form-row .form-control{flex:1}
@@ -176,16 +189,21 @@ export class InvoiceDetailComponent implements OnInit {
   readonly auth = inject(AuthService);
   private readonly svc = inject(InvoiceService);
   private readonly fb = inject(FormBuilder);
+  private readonly nameCache = inject(PatientNameCache);
 
   invoice = signal<Invoice | null>(null);
   summary = signal<InvoiceSummary | null>(null);
   loading = signal(true);
   actionError = signal('');
   actionSuccess = signal('');
+  patientName = signal('');
 
   chargeCategories = CHARGE_CATEGORIES;
   paymentMethods = PAYMENT_METHODS;
-  readonly parseFloat = parseFloat;
+
+  lineSubtotal(ln: any): string {
+    return (parseFloat(ln.unit_price.amount) * ln.quantity).toFixed(2);
+  }
 
   chargeForm = this.fb.group({
     category: ['consultation', Validators.required],
@@ -203,10 +221,12 @@ export class InvoiceDetailComponent implements OnInit {
   ngOnInit(): void { this.reload(); }
 
   reload(): void {
+    this.actionError.set('');
     this.svc.get(this.id()).subscribe({
       next: inv => {
         this.invoice.set(inv);
         this.loading.set(false);
+        this.nameCache.resolve(inv.patient_id).subscribe(n => this.patientName.set(n));
         this.svc.getSummary(this.id()).subscribe({ next: s => this.summary.set(s) });
       },
       error: () => this.loading.set(false),
@@ -219,7 +239,7 @@ export class InvoiceDetailComponent implements OnInit {
     this.svc.addCharge(this.id(), {
       category: v.category,
       description: v.description,
-      unit_price_amount: v.unit_price_amount,
+      unit_price_amount: String(v.unit_price_amount),
       unit_price_currency: this.invoice()!.currency,
       quantity: v.quantity ?? 1,
     }).subscribe({
@@ -240,7 +260,7 @@ export class InvoiceDetailComponent implements OnInit {
     if (this.paymentForm.invalid) return;
     const v = this.paymentForm.value as any;
     this.svc.recordPayment(this.id(), {
-      amount: v.amount,
+      amount: String(v.amount),
       currency: this.invoice()!.currency,
       method: v.method,
       reference: v.reference,

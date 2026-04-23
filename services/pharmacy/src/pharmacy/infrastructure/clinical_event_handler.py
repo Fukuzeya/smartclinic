@@ -62,7 +62,7 @@ async def handle_prescription_issued(
 
         # Persist directly as a row (events are drained by the UoW caller)
         row = PrescriptionRow(
-            prescription_id=uuid.UUID(str(prescription.id)),
+            prescription_id=prescription.id.value,
             encounter_id=prescription.encounter_id,
             patient_id=prescription.patient_id,
             issued_by=payload.get("issued_by", ""),
@@ -84,8 +84,8 @@ async def handle_consent_granted(
     event_id: uuid.UUID,
 ) -> None:
     """Update local consent projection when a patient grants TREATMENT consent."""
-    purpose = payload.get("purpose", "")
-    if purpose != "TREATMENT":
+    purpose = payload.get("purpose", "").lower()
+    if purpose != "treatment":
         return  # Only care about treatment consent for dispensing decisions
 
     async with idempotent_consumer(session, event_id=event_id, consumer_name=CONSENT_CONSUMER) as is_new:
@@ -108,8 +108,8 @@ async def handle_consent_revoked(
     event_id: uuid.UUID,
 ) -> None:
     """Update local consent projection when TREATMENT consent is revoked."""
-    purpose = payload.get("purpose", "")
-    if purpose != "TREATMENT":
+    purpose = payload.get("purpose", "").lower()
+    if purpose != "treatment":
         return
 
     async with idempotent_consumer(session, event_id=event_id, consumer_name=CONSENT_CONSUMER + ".revoke") as is_new:

@@ -20,7 +20,8 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any, ClassVar
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic_core import PydanticUndefined
 
 
 def _utcnow() -> datetime:
@@ -70,13 +71,37 @@ class DomainEvent(BaseModel):
     # without the concrete class in scope.
     payload: dict[str, Any] = Field(default_factory=dict)
 
-    def __init_subclass__(cls, **kwargs: Any) -> None:
-        super().__init_subclass__(**kwargs)
-        default = cls.model_fields.get("event_type")
-        # When a subclass declares ``event_type: ClassVar = "..."`` we keep
-        # a registry entry so the bus can round-trip it.
-        if default is not None and default.default not in (None, ""):
-            DomainEvent._REGISTRY[str(default.default)] = cls
+    # Strict mode rejects string→UUID / string→datetime coercion, but the
+    # event bus delivers JSON-encoded messages where both arrive as strings.
+    # These ``mode="before"`` validators accept the wire format without
+    # loosening strictness for any other field.
+    @field_validator("event_id", "causation_id", mode="before")
+    @classmethod
+    def _coerce_uuid(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            return uuid.UUID(v)
+        return v
+
+    @field_validator("occurred_at", mode="before")
+    @classmethod
+    def _coerce_datetime(cls, v: Any) -> Any:
+        if isinstance(v, str):
+            return datetime.fromisoformat(v)
+        return v
+
+    @classmethod
+    def __pydantic_init_subclass__(cls, **kwargs: Any) -> None:
+        # Pydantic v2 calls this *after* ``model_fields`` is populated, unlike
+        # the plain ``__init_subclass__`` hook which fires before field
+        # processing and therefore sees PydanticUndefined defaults.
+        super().__pydantic_init_subclass__(**kwargs)
+        field = cls.model_fields.get("event_type")
+        if field is None:
+            return
+        default = field.default
+        if default is PydanticUndefined or default in (None, ""):
+            return
+        DomainEvent._REGISTRY[str(default)] = cls
 
     @classmethod
     def for_type(cls, event_type: str) -> type[DomainEvent] | None:

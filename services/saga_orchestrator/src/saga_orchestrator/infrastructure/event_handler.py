@@ -40,10 +40,12 @@ _HANDLED = {
     "clinical.encounter.started.v1",
     "clinical.encounter.lab_order_placed.v1",
     "clinical.encounter.closed.v1",
+    "clinical.encounter.prescription_issued.v1",
     "laboratory.order.results_available.v1",
     "billing.invoice.issued.v1",
     "billing.invoice.payment_recorded.v1",
     "billing.invoice.voided.v1",
+    "pharmacy.dispensing.rejected.v1",
 }
 
 
@@ -87,6 +89,17 @@ async def _handle(
         return
 
     saga = await repo.get_by_encounter(encounter_id)
+
+    # For encounter.started, the saga was created keyed by appointment_id.
+    # Fall back to appointment_id lookup and re-key the saga.
+    if saga is None and et == "clinical.encounter.started.v1":
+        appt_id = payload.get("appointment_id")
+        if appt_id:
+            saga = await repo.get_by_encounter(appt_id)
+            if saga is not None:
+                await repo.update_encounter_id(saga.id, encounter_id)
+                log.info("saga.rekeyed", saga_id=str(saga.id), old_key=appt_id, new_key=encounter_id)
+
     if saga is None:
         log.warning("saga.not_found", event_type=et, encounter_id=encounter_id)
         return
@@ -118,6 +131,22 @@ async def _handle(
 
     elif et == "billing.invoice.voided.v1":
         saga.on_invoice_voided()
+
+    elif et == "pharmacy.dispensing.rejected.v1":
+        oos_drugs = payload.get("out_of_stock_drugs", [])
+        if oos_drugs:
+            prescription_id = event.aggregate_id
+            saga.on_dispensing_blocked_oos(
+                prescription_id=prescription_id,
+                out_of_stock_drugs=oos_drugs,
+            )
+        # Non-OOS rejections (interaction/consent) don't advance the saga —
+        # pharmacist handles them directly.
+
+    elif et == "clinical.encounter.prescription_issued.v1":
+        # A new prescription was issued — if saga is in SUBSTITUTION_REQUIRED
+        # this is the doctor's substitute; resume the saga.
+        saga.on_substitute_prescription_issued()
 
     await repo.save(saga)
     log.info(

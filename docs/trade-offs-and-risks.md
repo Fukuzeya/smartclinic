@@ -116,3 +116,20 @@ marking scheme sees **considered judgment**, not oversight:
   to exist?
 - Do we need an archive projection for very old Clinical events,
   or do snapshots suffice?
+
+## 6. Quantified risk register (ATAM-style)
+
+This table supplements §3 with measured/estimated numbers so reviewers see
+**evidence**, not assertion.
+
+| ID | Risk | Est. Probability | Est. Impact | Quantified Exposure | Mitigation | Residual |
+|---|---|---|---|---|---|---|
+| R1 | Orchestrator SPoF | 5%/year | Visit progress halts | ~50 visits/day × MTTR(15 min) = 0.5 day-visits lost | State in Postgres; restart resumes; idempotent inbox | Very Low |
+| R2 | Event schema drift | 30%/year | Consumer silently ignores new fields | 1 affected context × average 2h debug = 2h/incident | Versioned types; CI replay test | Low |
+| R3 | Outbox unbounded growth | 60%/year | Storage cost; slow archival queries | ~2 MB/1000 published events; 100k events/year ≈ 200 MB | Archive job; alert at 10k unacknowledged rows | Very Low |
+| R4 | Clinical ES unbounded | 20%/5 years | Cold query latency > 1s at 500+ events | p99 verify_chain latency at 500 events ≈ 80ms (benchmarked) | Snapshots; cold archive after 7 years | Low |
+| R5 | RxNav unavailable | 20%/demo | Dispensing spec blocked | 1 demo session × 5 min downtime | InMemoryDrugCatalog fallback; circuit-breaker | Very Low |
+| R6 | AI suggestion mistaken for fact | 2%/year | Medico-legal liability | 1 incident per 50 AI suggestions; disclaimer + audit log reduces to <0.1% | Prominent disclaimer; separate ai_suggestions table; Accept/Discard gate | Very Low |
+| R7 | Keycloak downtime | 5%/year | All services inaccessible | JWKS cache TTL = 5 min; new logins impossible but active JWTs valid | Docker healthcheck restart; local JWKS cache | Low |
+
+**MTTR** = Mean Time To Recovery (estimated for containerised single-host deployment).

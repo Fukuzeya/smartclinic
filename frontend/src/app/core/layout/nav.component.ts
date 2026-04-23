@@ -7,173 +7,238 @@ import { AuthService } from '../auth/auth.service';
   standalone: true,
   imports: [RouterLink, RouterLinkActive],
   template: `
-    <nav class="sidebar">
-      <div class="sidebar-brand">
-        <span class="brand-icon">🏥</span>
-        <span class="brand-name">SmartClinic</span>
-      </div>
+    <header class="topbar">
+      <div class="topbar-inner">
 
-      <ul class="nav-list">
-        <li>
-          <a routerLink="/dashboard" routerLinkActive="active" class="nav-link">
-            <span class="nav-icon">📊</span>
-            <span>Dashboard</span>
+        <!-- Brand -->
+        <a routerLink="/dashboard" class="topbar-brand">
+          <div class="brand-mark">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+            </svg>
+          </div>
+          <span class="brand-name">SmartClinic</span>
+          <span class="brand-tag">EHR</span>
+        </a>
+
+        <div class="topbar-divider"></div>
+
+        <!-- Primary navigation -->
+        <nav class="topbar-nav" aria-label="Main navigation">
+          <a routerLink="/dashboard" routerLinkActive="tl-active"
+             [routerLinkActiveOptions]="{exact:true}" class="tl">
+            Dashboard
           </a>
-        </li>
 
-        @if (auth.isReceptionist() || auth.isDoctor()) {
-          <li class="nav-section">PATIENT</li>
-          <li>
-            <a routerLink="/patients" routerLinkActive="active" class="nav-link">
-              <span class="nav-icon">👤</span>
-              <span>Patients</span>
-            </a>
-          </li>
-          <li>
-            <a routerLink="/appointments" routerLinkActive="active" class="nav-link">
-              <span class="nav-icon">📅</span>
-              <span>Appointments</span>
-            </a>
-          </li>
-        }
+          @if (auth.isReceptionist() || auth.isDoctor()) {
+            <a routerLink="/patients" routerLinkActive="tl-active" class="tl">Patients</a>
+            <a routerLink="/appointments" routerLinkActive="tl-active" class="tl">Appointments</a>
+          }
 
-        @if (auth.isDoctor()) {
-          <li class="nav-section">CLINICAL</li>
-          <li>
-            <a routerLink="/encounters" routerLinkActive="active" class="nav-link">
-              <span class="nav-icon">🩺</span>
-              <span>Encounters</span>
-            </a>
-          </li>
-        }
+          @if (auth.isDoctor()) {
+            <a routerLink="/encounters" routerLinkActive="tl-active" class="tl">Encounters</a>
+          }
 
-        @if (auth.hasRole('lab_technician') || auth.isDoctor()) {
-          <li class="nav-section">LABORATORY</li>
-          <li>
-            <a routerLink="/lab-orders" routerLinkActive="active" class="nav-link">
-              <span class="nav-icon">🧪</span>
-              <span>Lab Orders</span>
-            </a>
-          </li>
-        }
+          @if (auth.hasRole('lab_technician') || auth.isDoctor()) {
+            <a routerLink="/lab-orders" routerLinkActive="tl-active" class="tl">Lab Orders</a>
+          }
 
-        @if (auth.hasRole('pharmacist')) {
-          <li class="nav-section">PHARMACY</li>
-          <li>
-            <a routerLink="/prescriptions" routerLinkActive="active" class="nav-link">
-              <span class="nav-icon">💊</span>
-              <span>Prescriptions</span>
-            </a>
-          </li>
-        }
+          @if (auth.hasRole('pharmacist') || auth.isDoctor()) {
+            <a routerLink="/prescriptions" routerLinkActive="tl-active" class="tl">Prescriptions</a>
+          }
 
-        @if (auth.hasRole('accounts') || auth.isReceptionist()) {
-          <li class="nav-section">BILLING</li>
-          <li>
-            <a routerLink="/invoices" routerLinkActive="active" class="nav-link">
-              <span class="nav-icon">💵</span>
-              <span>Invoices</span>
-            </a>
-          </li>
-        }
+          @if (auth.hasRole('pharmacist')) {
+            <a routerLink="/stock" routerLinkActive="tl-active" class="tl">Drug Stock</a>
+          }
 
-        <li class="nav-section">OPERATIONS</li>
-        <li>
-          <a routerLink="/visit-tracker" routerLinkActive="active" class="nav-link">
-            <span class="nav-icon">🗺️</span>
-            <span>Visit Tracker</span>
-          </a>
-        </li>
-      </ul>
+          @if (auth.hasRole('accounts') || auth.isReceptionist()) {
+            <a routerLink="/invoices" routerLinkActive="tl-active" class="tl">Invoices</a>
+          }
 
-      <div class="sidebar-footer">
-        <div class="user-info">
-          <span class="user-name">{{ auth.profile()?.username }}</span>
-          <span class="user-role">{{ primaryRole() }}</span>
+          <a routerLink="/visit-tracker" routerLinkActive="tl-active" class="tl">Visit Tracker</a>
+        </nav>
+
+        <!-- Right: user + sign out -->
+        <div class="topbar-user">
+          <div class="user-chip">
+            <div class="user-avatar">{{ (auth.profile()?.username ?? 'U')[0].toUpperCase() }}</div>
+            <div class="user-meta">
+              <span class="user-name">{{ auth.profile()?.username }}</span>
+              <span class="user-role">{{ primaryRole() }}</span>
+            </div>
+          </div>
+          <div class="topbar-divider"></div>
+          <button class="signout-btn" (click)="auth.logout()" title="Sign out">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            Sign out
+          </button>
         </div>
-        <button class="logout-btn" (click)="auth.logout()">Sign out</button>
+
       </div>
-    </nav>
+    </header>
   `,
   styles: [`
-    .sidebar {
-      display: flex;
-      flex-direction: column;
-      width: 220px;
-      height: 100vh;
-      background: #1e293b;
-      color: #f8fafc;
-      padding: 0;
+    /* ── Top bar ── */
+    .topbar {
       position: fixed;
-      left: 0;
-      top: 0;
-      overflow-y: auto;
+      top: 0; left: 0; right: 0;
+      height: var(--header-h, 56px);
+      background: var(--clr-nav-bg, #0F2D52);
+      z-index: 200;
+      box-shadow: 0 1px 4px rgba(0,0,0,.25);
     }
-    .sidebar-brand {
+    .topbar-inner {
+      height: 100%;
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 20px 16px;
-      border-bottom: 1px solid #334155;
-      font-size: 1.1rem;
+      padding: 0 20px;
+      gap: 0;
+    }
+
+    /* ── Brand ── */
+    .topbar-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      text-decoration: none;
+      color: #fff;
+      flex-shrink: 0;
+      padding-right: 4px;
+    }
+    .brand-mark {
+      width: 28px; height: 28px;
+      border-radius: 5px;
+      background: rgba(255,255,255,.18);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      flex-shrink: 0;
+    }
+    .brand-name {
+      font-size: .9rem;
       font-weight: 700;
-      position: sticky;
-      top: 0;
-      background: #1e293b;
-      z-index: 1;
+      letter-spacing: -.01em;
+      white-space: nowrap;
     }
-    .nav-list {
-      list-style: none;
-      margin: 0;
-      padding: 12px 0;
-      flex: 1;
-    }
-    .nav-section {
-      padding: 12px 16px 4px;
+    .brand-tag {
       font-size: .6rem;
       font-weight: 700;
-      color: #475569;
-      letter-spacing: .08em;
+      background: rgba(255,255,255,.15);
+      color: rgba(255,255,255,.8);
+      padding: 2px 6px;
+      border-radius: 3px;
+      letter-spacing: .1em;
+      text-transform: uppercase;
     }
-    .nav-link {
+
+    /* ── Divider ── */
+    .topbar-divider {
+      width: 1px;
+      height: 22px;
+      background: rgba(255,255,255,.15);
+      flex-shrink: 0;
+      margin: 0 16px;
+    }
+
+    /* ── Nav links ── */
+    .topbar-nav {
+      flex: 1;
+      display: flex;
+      align-items: stretch;
+      height: 100%;
+      overflow-x: auto;
+      scrollbar-width: none;
+      &::-webkit-scrollbar { display: none; }
+    }
+    .tl {
       display: flex;
       align-items: center;
-      gap: 10px;
-      padding: 9px 16px;
-      color: #94a3b8;
+      padding: 0 13px;
+      color: rgba(255,255,255,.72);
       text-decoration: none;
-      border-radius: 6px;
-      margin: 1px 8px;
-      transition: background 0.15s, color 0.15s;
-      font-size: .9rem;
+      font-size: .8rem;
+      font-weight: 500;
+      white-space: nowrap;
+      border-bottom: 2px solid transparent;
+      transition: color .12s, background .12s, border-color .12s;
+      letter-spacing: .01em;
+
+      &:hover {
+        color: #fff;
+        background: var(--clr-nav-hover, rgba(255,255,255,.08));
+      }
     }
-    .nav-link:hover, .nav-link.active {
-      background: #334155;
-      color: #f8fafc;
+    .tl-active {
+      color: #fff !important;
+      border-bottom-color: var(--clr-nav-active-border, #60A5FA) !important;
+      background: rgba(255,255,255,.1) !important;
     }
-    .nav-icon { font-size: 1rem; width: 20px; text-align: center; }
-    .sidebar-footer {
-      padding: 16px;
-      border-top: 1px solid #334155;
-      position: sticky;
-      bottom: 0;
-      background: #1e293b;
+
+    /* ── User area ── */
+    .topbar-user {
+      display: flex;
+      align-items: center;
+      gap: 0;
+      flex-shrink: 0;
     }
-    .user-name { display: block; font-weight: 600; font-size: 0.9rem; }
-    .user-role { display: block; font-size: 0.75rem; color: #94a3b8; text-transform: capitalize; }
-    .logout-btn {
-      margin-top: 10px;
-      width: 100%;
-      padding: 8px;
+    .user-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .user-avatar {
+      width: 28px; height: 28px;
+      border-radius: 50%;
+      background: rgba(255,255,255,.22);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: .78rem;
+      flex-shrink: 0;
+      border: 1px solid rgba(255,255,255,.3);
+    }
+    .user-meta {
+      display: flex;
+      flex-direction: column;
+      line-height: 1.2;
+    }
+    .user-name {
+      font-size: .78rem;
+      font-weight: 600;
+      color: #fff;
+    }
+    .user-role {
+      font-size: .65rem;
+      color: rgba(255,255,255,.6);
+      text-transform: capitalize;
+    }
+    .signout-btn {
+      display: flex;
+      align-items: center;
+      gap: 5px;
       background: transparent;
-      border: 1px solid #475569;
-      color: #94a3b8;
-      border-radius: 6px;
+      border: none;
+      color: rgba(255,255,255,.7);
+      font-size: .78rem;
+      font-family: inherit;
+      font-weight: 500;
       cursor: pointer;
-      font-size: 0.85rem;
-      transition: background 0.15s;
+      padding: 6px 10px;
+      border-radius: 4px;
+      white-space: nowrap;
+      transition: background .12s, color .12s;
+      &:hover {
+        background: rgba(255,255,255,.12);
+        color: #fff;
+      }
     }
-    .logout-btn:hover { background: #334155; color: #f8fafc; }
   `],
 })
 export class NavComponent {

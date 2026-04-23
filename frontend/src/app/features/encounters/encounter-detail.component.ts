@@ -1,25 +1,36 @@
 import { Component, inject, signal, input, OnInit } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule, Validators, FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { EncounterService } from '../../shared/api/encounter.service';
+import { EncounterService, PrescriptionLine, LabTestLine } from '../../shared/api/encounter.service';
 import { Encounter } from '../../shared/models/encounter.model';
 import { AuthService } from '../../core/auth/auth.service';
+import { EncounterTimelineComponent } from './encounter-timeline.component';
+import { AiSoapCopilotComponent } from './ai-soap-copilot.component';
+import { PatientNameCache } from '../../shared/services/patient-name-cache.service';
+import { timer } from 'rxjs';
 
 @Component({
   selector: 'app-encounter-detail',
   standalone: true,
-  imports: [RouterLink, ReactiveFormsModule],
+  imports: [RouterLink, ReactiveFormsModule, FormsModule, EncounterTimelineComponent, AiSoapCopilotComponent],
   template: `
     @if (loading()) {
       <div class="loading">Loading encounter…</div>
+    } @else if (!encounter()) {
+      <div class="empty-state">
+        <h2>Encounter not found</h2>
+        <p style="color:var(--clr-gray-500)">The encounter may still be processing. Try refreshing in a moment.</p>
+        <button class="btn-secondary" (click)="reload()">↻ Retry</button>
+      </div>
     } @else if (encounter()) {
       <div class="page-header">
         <div>
           <h1 class="page-title">Encounter</h1>
-          <code style="font-size:0.85rem;color:#64748b">{{ encounter()!.encounter_id }}</code>
+          <div style="font-size:0.9rem;color:var(--clr-gray-700);font-weight:600;margin-top:2px">{{ patientName() || 'Patient' }}</div>
+          <code style="font-size:0.85rem;color:var(--clr-gray-500)">{{ encounter()!.encounter_id }}</code>
         </div>
         <span class="badge" [class]="'badge-' + encounter()!.status" style="font-size:0.9rem;padding:6px 14px">
-          {{ encounter()!.status }}
+          {{ encounter()!.status.replace('_', ' ') }}
         </span>
       </div>
 
@@ -39,7 +50,7 @@ import { AuthService } from '../../core/auth/auth.service';
             <p class="muted">No vitals recorded.</p>
           }
 
-          @if (encounter()!.status === 'open' && auth.isDoctor()) {
+          @if (encounter()!.status === 'in_progress' && auth.isDoctor()) {
             <form [formGroup]="vitalsForm" (ngSubmit)="saveVitals()" class="inline-form">
               <div class="form-row">
                 <input class="form-control" type="number" formControlName="temperature_c" placeholder="Temp °C" step="0.1" />
@@ -67,7 +78,7 @@ import { AuthService } from '../../core/auth/auth.service';
             <p class="muted">No SOAP note recorded.</p>
           }
 
-          @if (encounter()!.status === 'open' && auth.isDoctor()) {
+          @if (encounter()!.status === 'in_progress' && auth.isDoctor()) {
             <form [formGroup]="soapForm" (ngSubmit)="saveSOAP()" class="inline-form">
               <textarea class="form-control" formControlName="subjective" placeholder="Subjective…" rows="2"></textarea>
               <textarea class="form-control" formControlName="objective"  placeholder="Objective…"  rows="2"></textarea>
@@ -95,7 +106,7 @@ import { AuthService } from '../../core/auth/auth.service';
             <p class="muted">No diagnoses recorded.</p>
           }
 
-          @if (encounter()!.status === 'open' && auth.isDoctor()) {
+          @if (encounter()!.status === 'in_progress' && auth.isDoctor()) {
             <form [formGroup]="dxForm" (ngSubmit)="addDx()" class="inline-form">
               <div class="form-row">
                 <input class="form-control" formControlName="icd10_code" placeholder="ICD-10 code e.g. J06.9" />
@@ -109,9 +120,64 @@ import { AuthService } from '../../core/auth/auth.service';
         <!-- Actions card -->
         <div class="card">
           <h3 class="card-title">Actions</h3>
-          <div class="action-list">
+
+          @if (encounter()!.status === 'in_progress' && auth.isDoctor()) {
+            <!-- Issue Prescription -->
+            <details class="action-section">
+              <summary class="action-toggle">💊 Issue Prescription</summary>
+              <div class="rx-lines">
+                @for (line of rxLines; track $index) {
+                  <div class="rx-line-row">
+                    <input class="form-control" [(ngModel)]="line.drug_name" placeholder="Drug name" />
+                    <input class="form-control" [(ngModel)]="line.dose" placeholder="Dose e.g. 500mg" />
+                    <input class="form-control" [(ngModel)]="line.route" placeholder="Route e.g. PO" />
+                    <input class="form-control" [(ngModel)]="line.frequency" placeholder="Freq e.g. TDS" />
+                    <input class="form-control" type="number" [(ngModel)]="line.duration_days" placeholder="Days" style="max-width:70px" />
+                    <input class="form-control" [(ngModel)]="line.instructions" placeholder="Instructions (optional)" />
+                    @if (rxLines.length > 1) {
+                      <button type="button" class="btn-icon" (click)="removeRxLine($index)" title="Remove">✕</button>
+                    }
+                  </div>
+                }
+                <div class="rx-actions">
+                  <button type="button" class="btn-secondary btn-sm" (click)="addRxLine()">+ Add line</button>
+                  <button type="button" class="btn-primary btn-sm" (click)="submitPrescription()" [disabled]="!canSubmitRx()">Issue Prescription</button>
+                </div>
+              </div>
+            </details>
+
+            <!-- Place Lab Order -->
+            <details class="action-section">
+              <summary class="action-toggle">🧪 Place Lab Order</summary>
+              <div class="rx-lines">
+                @for (test of labLines; track $index) {
+                  <div class="rx-line-row">
+                    <input class="form-control" [(ngModel)]="test.test_code" placeholder="Test code e.g. FBC, U&E" />
+                    <select class="form-control" [(ngModel)]="test.urgency" style="max-width:120px">
+                      <option value="routine">Routine</option>
+                      <option value="urgent">Urgent</option>
+                      <option value="stat">STAT</option>
+                    </select>
+                    <input class="form-control" [(ngModel)]="test.notes" placeholder="Notes (optional)" />
+                    @if (labLines.length > 1) {
+                      <button type="button" class="btn-icon" (click)="removeLabLine($index)" title="Remove">✕</button>
+                    }
+                  </div>
+                }
+                <div class="rx-actions">
+                  <button type="button" class="btn-secondary btn-sm" (click)="addLabLine()">+ Add test</button>
+                  <button type="button" class="btn-primary btn-sm" (click)="submitLabOrder()" [disabled]="!canSubmitLab()">Place Lab Order</button>
+                </div>
+              </div>
+            </details>
+          }
+
+          <div class="action-list" style="margin-top:12px">
             <a [routerLink]="['/lab-orders']" [queryParams]="{encounter_id: encounter()!.encounter_id}" class="action-row">
               🧪 View Lab Orders for this encounter
+            </a>
+            <a [routerLink]="['/prescriptions']" [queryParams]="{encounter_id: encounter()!.encounter_id}" class="action-row">
+              💊 View Prescriptions for this encounter
             </a>
             <a [routerLink]="['/invoices']" [queryParams]="{encounter_id: encounter()!.encounter_id}" class="action-row">
               💵 View Invoice
@@ -121,15 +187,15 @@ import { AuthService } from '../../core/auth/auth.service';
             </a>
           </div>
 
-          @if (encounter()!.status === 'open' && auth.isDoctor()) {
+          @if (encounter()!.status === 'in_progress' && auth.isDoctor()) {
             <button class="btn-danger" style="margin-top:16px" (click)="closeEncounter()">
               Close & Sign Encounter
             </button>
           }
 
           @if (chainResult()) {
-            <div [class]="chainResult()!.valid ? 'alert-success' : 'alert-error'" style="margin-top:12px">
-              {{ chainResult()!.valid ? '✓ Event chain intact — no tampering detected' : '⚠ Chain break at event ' + chainResult()!.tampered_at }}
+            <div [class]="chainResult()!.is_valid ? 'alert-success' : 'alert-error'" style="margin-top:12px">
+              {{ chainResult()!.is_valid ? '✓ Event chain intact — ' + chainResult()!.event_count + ' events verified' : '⚠ Chain broken: ' + chainResult()!.message }}
             </div>
           }
           <button class="btn-secondary btn-sm" style="margin-top:8px" (click)="verifyChain()">🔒 Verify audit chain</button>
@@ -137,25 +203,51 @@ import { AuthService } from '../../core/auth/auth.service';
           @if (actionError()) { <div class="alert-error" style="margin-top:8px">{{ actionError() }}</div> }
         </div>
       </div>
+
+      <!-- AI Clinical Copilot — SOAP draft (doctors only, in-progress encounters) -->
+      @if (encounter()!.status === 'in_progress' && auth.isDoctor()) {
+        <div style="margin-top:16px">
+          <app-ai-soap-copilot [encounterId]="id()" />
+        </div>
+      }
+
+      <!-- Event Sourcing timeline — the demo showpiece -->
+      <div class="card" style="margin-top:16px">
+        <app-encounter-timeline [encounterId]="id()" />
+      </div>
     }
   `,
   styles: [`
     .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     @media (max-width: 768px) { .detail-grid { grid-template-columns: 1fr; } }
-    .card-title { font-weight: 600; color: #334155; margin-bottom: 12px; font-size: 0.95rem; }
+    .card-title { font-weight: 600; color: var(--clr-gray-700); margin-bottom: 12px; font-size: 0.95rem; }
     .kv-list { display: grid; grid-template-columns: max-content 1fr; gap: 4px 16px; font-size: 0.875rem; }
-    .kv-list dt { color: #64748b; font-weight: 500; }
-    .kv-list dd { margin: 0; }
-    .muted { color: #94a3b8; font-size: 0.875rem; }
+    .kv-list dt { color: var(--clr-gray-500); font-weight: 500; }
+    .kv-list dd { margin: 0; color: var(--clr-gray-800); }
+    .muted { color: var(--clr-gray-400); font-size: 0.875rem; }
     .inline-form { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }
     .form-row { display: flex; gap: 8px; flex-wrap: wrap; }
     .form-row .form-control { flex: 1; min-width: 80px; }
     .btn-sm { padding: 6px 14px; font-size: 0.8rem; }
     .dx-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 6px; font-size: 0.875rem; }
-    .icd-code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; margin-right: 8px; }
+    .icd-code { background: var(--clr-gray-100); padding: 2px 6px; border-radius: 4px; font-size: 0.8rem; margin-right: 8px; }
     .action-list { display: flex; flex-direction: column; gap: 8px; }
-    .action-row { color: #6366f1; text-decoration: none; font-size: 0.875rem; padding: 8px; border-radius: 6px; background: #f8fafc; display: block; }
-    .action-row:hover { background: #eef2ff; }
+    .action-row { color: var(--clr-accent); text-decoration: none; font-size: 0.875rem; padding: 10px 12px; border-radius: 6px; background: var(--clr-gray-50); display: block; transition: background .15s; }
+    .action-row:hover { background: var(--clr-brand-light); }
+    .action-section { margin-bottom: 12px; border: 1px solid var(--clr-gray-200); border-radius: 8px; padding: 0; }
+    .action-section[open] { padding-bottom: 12px; }
+    .action-toggle { cursor: pointer; padding: 10px 14px; font-weight: 600; font-size: 0.9rem; color: var(--clr-accent); list-style: none; }
+    .action-toggle::-webkit-details-marker { display: none; }
+    .action-toggle::before { content: '▸ '; }
+    details[open] > .action-toggle::before { content: '▾ '; }
+    .rx-lines { padding: 0 14px; display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+    .rx-line-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+    .rx-line-row .form-control { flex: 1; min-width: 80px; }
+    .rx-actions { display: flex; gap: 8px; margin-top: 4px; }
+    .btn-icon { background: none; border: none; cursor: pointer; color: var(--clr-gray-500); font-size: 1.1rem; padding: 2px 6px; }
+    .btn-icon:hover { color: var(--clr-danger); }
+    .btn-primary { background: var(--clr-accent); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
   `],
 })
 export class EncounterDetailComponent implements OnInit {
@@ -163,11 +255,13 @@ export class EncounterDetailComponent implements OnInit {
   readonly auth = inject(AuthService);
   private readonly svc = inject(EncounterService);
   private readonly fb = inject(FormBuilder);
+  private readonly nameCache = inject(PatientNameCache);
 
   encounter = signal<Encounter | null>(null);
   loading = signal(true);
   actionError = signal('');
-  chainResult = signal<{ valid: boolean; tampered_at?: number } | null>(null);
+  patientName = signal('');
+  chainResult = signal<{ is_valid: boolean; message: string; event_count: number; first_broken_sequence?: number } | null>(null);
 
   vitalsForm = this.fb.group({
     temperature_c: [null as number | null],
@@ -189,23 +283,45 @@ export class EncounterDetailComponent implements OnInit {
     description: ['', Validators.required],
   });
 
+  // Prescription lines (ngModel-bound)
+  rxLines: PrescriptionLine[] = [{ drug_name: '', dose: '', route: '', frequency: '', duration_days: 0 }];
+
+  // Lab order lines (ngModel-bound)
+  labLines: LabTestLine[] = [{ test_code: '', urgency: 'routine' }];
+
   ngOnInit(): void { this.reload(); }
+
+  private retryCount = 0;
+  private readonly MAX_RETRIES = 5;
 
   reload(): void {
     this.svc.get(this.id()).subscribe({
-      next: e => { this.encounter.set(e); this.loading.set(false); },
-      error: () => this.loading.set(false),
+      next: e => {
+        this.retryCount = 0;
+        this.encounter.set(e);
+        this.loading.set(false);
+        this.nameCache.resolve(e.patient_id).subscribe(n => this.patientName.set(n));
+      },
+      error: (err) => {
+        if (err.status === 404 && this.retryCount < this.MAX_RETRIES) {
+          this.retryCount++;
+          timer(1000).subscribe(() => this.reload());
+        } else {
+          this.retryCount = 0;
+          this.loading.set(false);
+        }
+      },
     });
   }
 
   saveVitals(): void {
     const v = this.vitalsForm.value;
     this.svc.recordVitals(this.id(), {
-      temperature_c: v.temperature_c ?? undefined,
+      temperature_celsius: v.temperature_c ?? undefined,
       pulse_bpm: v.pulse_bpm ?? undefined,
-      systolic_bp: v.systolic_bp ?? undefined,
-      diastolic_bp: v.diastolic_bp ?? undefined,
-      oxygen_saturation: v.oxygen_saturation ?? undefined,
+      systolic_bp_mmhg: v.systolic_bp ?? undefined,
+      diastolic_bp_mmhg: v.diastolic_bp ?? undefined,
+      oxygen_saturation_pct: v.oxygen_saturation ?? undefined,
     }).subscribe({ next: () => this.reload(), error: e => this.actionError.set(e.error?.detail ?? 'Error') });
   }
 
@@ -230,7 +346,41 @@ export class EncounterDetailComponent implements OnInit {
   verifyChain(): void {
     this.svc.verifyChain(this.id()).subscribe({
       next: r => this.chainResult.set(r),
-      error: () => this.actionError.set('Chain verification failed'),
+      error: () => this.actionError.set('Chain verification failed — check network or permissions'),
+    });
+  }
+
+  // ── Prescription helpers ──
+  addRxLine(): void { this.rxLines.push({ drug_name: '', dose: '', route: '', frequency: '', duration_days: 0 }); }
+  removeRxLine(i: number): void { this.rxLines.splice(i, 1); }
+  canSubmitRx(): boolean { return this.rxLines.every(l => l.drug_name && l.dose && l.route && l.frequency && l.duration_days > 0); }
+
+  submitPrescription(): void {
+    if (!this.canSubmitRx()) return;
+    this.svc.issuePrescription(this.id(), { lines: this.rxLines }).subscribe({
+      next: () => {
+        this.rxLines = [{ drug_name: '', dose: '', route: '', frequency: '', duration_days: 0 }];
+        this.actionError.set('');
+        this.reload();
+      },
+      error: e => this.actionError.set(e.error?.detail ?? 'Failed to issue prescription'),
+    });
+  }
+
+  // ── Lab order helpers ──
+  addLabLine(): void { this.labLines.push({ test_code: '', urgency: 'routine' }); }
+  removeLabLine(i: number): void { this.labLines.splice(i, 1); }
+  canSubmitLab(): boolean { return this.labLines.every(t => t.test_code?.trim()); }
+
+  submitLabOrder(): void {
+    if (!this.canSubmitLab()) return;
+    this.svc.placeLabOrder(this.id(), { tests: this.labLines }).subscribe({
+      next: () => {
+        this.labLines = [{ test_code: '', urgency: 'routine' }];
+        this.actionError.set('');
+        this.reload();
+      },
+      error: e => this.actionError.set(e.error?.detail ?? 'Failed to place lab order'),
     });
   }
 }

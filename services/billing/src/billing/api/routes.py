@@ -95,7 +95,7 @@ async def add_charge(
     dependencies=[Depends(require_role("accounts"))],
 )
 async def issue_invoice(invoice_id: str, request: Request) -> None:
-    principal = get_current_principal(request)
+    principal = await get_current_principal(request, request.headers.get("authorization"))
     await IssueInvoiceHandler(request.app.state.uow_factory).handle(
         IssueInvoiceCommand(
             invoice_id=BillId.parse(invoice_id),
@@ -112,7 +112,7 @@ async def issue_invoice(invoice_id: str, request: Request) -> None:
 async def record_payment(
     invoice_id: str, body: RecordPaymentRequest, request: Request
 ) -> None:
-    principal = get_current_principal(request)
+    principal = await get_current_principal(request, request.headers.get("authorization"))
     await RecordPaymentHandler(request.app.state.uow_factory).handle(
         RecordPaymentCommand(
             invoice_id=BillId.parse(invoice_id),
@@ -133,7 +133,7 @@ async def record_payment(
 async def void_invoice(
     invoice_id: str, body: VoidRequest, request: Request
 ) -> None:
-    principal = get_current_principal(request)
+    principal = await get_current_principal(request, request.headers.get("authorization"))
     await VoidInvoiceHandler(request.app.state.uow_factory).handle(
         VoidInvoiceCommand(
             invoice_id=BillId.parse(invoice_id),
@@ -187,11 +187,12 @@ async def list_invoices(
     dependencies=[Depends(require_any_role("accounts", "doctor", "receptionist"))],
 )
 async def get_invoice(invoice_id: str, request: Request) -> dict:
+    bid = BillId.parse(invoice_id)
     session_factory = request.app.state.session_factory
     async with session_factory() as session:
         row = (await session.execute(
             select(InvoiceRow).where(
-                InvoiceRow.invoice_id == uuid.UUID(invoice_id)
+                InvoiceRow.invoice_id == bid.value
             )
         )).scalar_one_or_none()
     if row is None:
@@ -207,11 +208,12 @@ async def get_invoice_summary(invoice_id: str, request: Request) -> dict:
     from decimal import Decimal
     from shared_kernel.types.money import Currency, Money
 
+    bid = BillId.parse(invoice_id)
     session_factory = request.app.state.session_factory
     async with session_factory() as session:
         row = (await session.execute(
             select(InvoiceRow).where(
-                InvoiceRow.invoice_id == uuid.UUID(invoice_id)
+                InvoiceRow.invoice_id == bid.value
             )
         )).scalar_one_or_none()
     if row is None:

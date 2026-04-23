@@ -1,0 +1,74 @@
+# SmartClinic — Caddy reverse proxy (HTTP-only, IP-hosted).
+#
+# NOTE: this configuration serves plain HTTP on port 80 only. It is
+# appropriate for the academic demo on http://172.236.3.27. Do not use
+# this config for real patient data — OIDC tokens and PII would travel
+# unencrypted. Switch to the HTTPS variant (auto-TLS with Let's Encrypt)
+# the moment you attach a domain.
+#
+# Variables consumed (set via env on the Caddy container):
+#   DEPLOY_HOST   e.g.  172.236.3.27   (IP or bare hostname)
+
+{
+    # Global options: auto_https must be OFF for IP-only HTTP.
+    auto_https off
+    servers {
+        protocols h1 h2c
+    }
+}
+
+# Bind to port 80 for any request — IP or host header is fine.
+:80 {
+    encode zstd gzip
+
+    # Headers that remain useful even over HTTP.
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options        "DENY"
+        Referrer-Policy        "strict-origin-when-cross-origin"
+        Permissions-Policy     "geolocation=(), microphone=(), camera=()"
+        -Server
+    }
+
+    # Aggregate health for the CI smoke-test.
+    handle /health {
+        respond "ok" 200
+    }
+
+    # Keycloak admin console + OIDC endpoints.
+    handle_path /auth/* {
+        reverse_proxy keycloak:8080 {
+            header_up Host              {host}
+            header_up X-Forwarded-Proto http
+            header_up X-Forwarded-Host  {host}
+        }
+    }
+
+    # Bounded-context APIs.
+    handle_path /api/patients/*      { reverse_proxy patient_identity:8000 }
+    handle_path /api/appointments/*  { reverse_proxy scheduling:8000 }
+    handle_path /api/encounters/*    { reverse_proxy clinical:8000 }
+    handle_path /api/prescriptions/* { reverse_proxy pharmacy:8000 }
+    handle_path /api/lab/*           { reverse_proxy laboratory:8000 }
+    handle_path /api/invoices/*      { reverse_proxy billing:8000 }
+    handle_path /api/saga/*          { reverse_proxy saga_orchestrator:8000 }
+
+    # Optional: observability dashboards (only up when --profile obs).
+    handle_path /grafana/* {
+        basicauth {
+            {$GRAFANA_BASICAUTH_USER} {$GRAFANA_BASICAUTH_HASH}
+        }
+        reverse_proxy grafana:3000
+    }
+
+    # Angular SPA + client-side routing fallback (default handler).
+    handle {
+        reverse_proxy frontend:80
+    }
+
+    log {
+        output stdout
+        format console
+        level INFO
+    }
+}

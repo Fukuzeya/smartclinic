@@ -27,8 +27,10 @@ from shared_kernel.infrastructure.logging import get_logger
 from shared_kernel.infrastructure.outbox import OutboxRelay, RelayConfig
 from shared_kernel.infrastructure.sqlalchemy_uow import SqlAlchemyUnitOfWork
 
+from shared_kernel.ai.copilot_port import build_copilot
+
 from clinical.api.routes import router
-from clinical.infrastructure.orm import Base, EventStoreRecord, EncounterSummaryRow  # noqa: F401
+from clinical.infrastructure.orm import AISuggestionRecord, Base, EventStoreRecord, EncounterSummaryRow  # noqa: F401
 from clinical.infrastructure.projections import make_projection_handler
 from clinical.infrastructure.settings import ClinicalSettings
 
@@ -50,6 +52,7 @@ async def _startup_hook(app: FastAPI) -> Callable[[], Awaitable[None]]:
 
     app.state.session_factory = session_factory
     app.state.uow_factory = lambda: SqlAlchemyUnitOfWork(session_factory)
+    app.state.copilot = build_copilot()
 
     publisher = RabbitMQPublisher(url=settings.rabbitmq_url)
     await publisher.connect()

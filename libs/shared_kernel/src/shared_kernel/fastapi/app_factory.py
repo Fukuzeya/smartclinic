@@ -25,7 +25,7 @@ from typing import Any
 
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 from shared_kernel.fastapi.exception_handlers import register_exception_handlers
@@ -87,7 +87,7 @@ def create_app(
         title=title or settings.service_name,
         version=version,
         lifespan=lifespan,
-        default_response_class=Response,
+        default_response_class=JSONResponse,
         openapi_url="/openapi.json",
         docs_url="/docs",
         redoc_url="/redoc",

@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { roleGuard } from '../../core/auth/auth.guard';
 
 export const APPOINTMENT_ROUTES: Routes = [
   {
@@ -8,6 +9,7 @@ export const APPOINTMENT_ROUTES: Routes = [
   },
   {
     path: 'new',
+    canActivate: [roleGuard('receptionist')],
     loadComponent: () =>
       import('./appointment-book.component').then(m => m.AppointmentBookComponent),
   },

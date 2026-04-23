@@ -68,7 +68,7 @@ class Invoice(AggregateRoot[BillId]):
         instance._lines: list[ChargeLine] = []
         instance._payments: list[PaymentRecord] = []
         instance._record(InvoiceCreatedV1.build(
-            invoice_id=uuid.UUID(str(invoice_id)),
+            invoice_id=invoice_id.value,
             aggregate_version=instance._next_version(),
             patient_id=patient_id,
             encounter_id=encounter_id,
@@ -118,7 +118,7 @@ class Invoice(AggregateRoot[BillId]):
             )
         self._lines.append(line)
         self._record(ChargeAddedV1.build(
-            invoice_id=uuid.UUID(str(self.id)),
+            invoice_id=self.id.value,
             aggregate_version=self._next_version(),
             line=line.model_dump(mode="json"),
         ))
@@ -136,7 +136,7 @@ class Invoice(AggregateRoot[BillId]):
             )
         self._status = InvoiceStatus.ISSUED
         self._record(InvoiceIssuedV1.build(
-            invoice_id=uuid.UUID(str(self.id)),
+            invoice_id=self.id.value,
             aggregate_version=self._next_version(),
             total_due_minor_units=self.total_due.minor_units_amount,
             currency=self._currency.value,
@@ -186,7 +186,7 @@ class Invoice(AggregateRoot[BillId]):
             self._status = InvoiceStatus.PARTIALLY_PAID
 
         self._record(PaymentRecordedV1.build(
-            invoice_id=uuid.UUID(str(self.id)),
+            invoice_id=self.id.value,
             aggregate_version=self._next_version(),
             amount_minor_units=amount.minor_units_amount,
             currency=self._currency.value,
@@ -206,7 +206,7 @@ class Invoice(AggregateRoot[BillId]):
             )
         self._status = InvoiceStatus.VOID
         self._record(InvoiceVoidedV1.build(
-            invoice_id=uuid.UUID(str(self.id)),
+            invoice_id=self.id.value,
             aggregate_version=self._next_version(),
             reason=reason,
             voided_by=voided_by,

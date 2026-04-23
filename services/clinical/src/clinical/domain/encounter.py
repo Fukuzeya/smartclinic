@@ -102,7 +102,7 @@ class Encounter(EventSourcedAggregateRoot[EncounterId]):
         instance._lab_orders: list[list[LabOrderLine]] = []
 
         event = EncounterStartedV1.build(
-            encounter_id=uuid.UUID(str(encounter_id)),
+            encounter_id=encounter_id.value,
             aggregate_version=instance._next_version(),
             patient_id=patient_id,
             doctor_id=doctor_id,
@@ -149,7 +149,7 @@ class Encounter(EventSourcedAggregateRoot[EncounterId]):
         """Record a set of vital-sign observations."""
         self._assert_in_progress()
         event = VitalSignsRecordedV1.build(
-            encounter_id=uuid.UUID(str(self.id)),
+            encounter_id=self.id.value,
             aggregate_version=self._next_version(),
             vitals_payload=vitals.model_dump(mode="json"),
         )
@@ -159,7 +159,7 @@ class Encounter(EventSourcedAggregateRoot[EncounterId]):
         """Append a structured SOAP note."""
         self._assert_in_progress()
         event = SOAPNoteAddedV1.build(
-            encounter_id=uuid.UUID(str(self.id)),
+            encounter_id=self.id.value,
             aggregate_version=self._next_version(),
             note_payload=note.model_dump(mode="json"),
         )
@@ -178,7 +178,7 @@ class Encounter(EventSourcedAggregateRoot[EncounterId]):
                     "already recorded. Demote it first before marking a new primary."
                 )
         event = DiagnosisRecordedV1.build(
-            encounter_id=uuid.UUID(str(self.id)),
+            encounter_id=self.id.value,
             aggregate_version=self._next_version(),
             diagnosis_payload=diagnosis.model_dump(mode="json"),
         )
@@ -196,9 +196,10 @@ class Encounter(EventSourcedAggregateRoot[EncounterId]):
         if not lines:
             raise InvariantViolation("A prescription must have at least one drug line")
         event = PrescriptionIssuedV1.build(
-            encounter_id=uuid.UUID(str(self.id)),
+            encounter_id=self.id.value,
             aggregate_version=self._next_version(),
             prescription_id=prescription_id,
+            patient_id=self._patient_id,
             lines_payload=[ln.model_dump(mode="json") for ln in lines],
             issued_by=issued_by,
         )
@@ -216,9 +217,10 @@ class Encounter(EventSourcedAggregateRoot[EncounterId]):
         if not tests:
             raise InvariantViolation("A lab order must request at least one test")
         event = LabOrderPlacedV1.build(
-            encounter_id=uuid.UUID(str(self.id)),
+            encounter_id=self.id.value,
             aggregate_version=self._next_version(),
             lab_order_id=lab_order_id,
+            patient_id=self._patient_id,
             tests_payload=[t.model_dump(mode="json") for t in tests],
             ordered_by=ordered_by,
         )
@@ -234,7 +236,7 @@ class Encounter(EventSourcedAggregateRoot[EncounterId]):
             )
         primary = next((d for d in self._diagnoses if d.is_primary), None)
         event = EncounterClosedV1.build(
-            encounter_id=uuid.UUID(str(self.id)),
+            encounter_id=self.id.value,
             aggregate_version=self._next_version(),
             patient_id=self._patient_id,
             doctor_id=self._doctor_id,
@@ -252,7 +254,7 @@ class Encounter(EventSourcedAggregateRoot[EncounterId]):
         if self._status == ClinicalStatus.VOIDED:
             raise PreconditionFailed("Encounter is already voided.")
         event = EncounterVoidedV1.build(
-            encounter_id=uuid.UUID(str(self.id)),
+            encounter_id=self.id.value,
             aggregate_version=self._next_version(),
             reason=reason,
             voided_by=voided_by,

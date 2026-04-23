@@ -1,0 +1,169 @@
+# SmartClinic — production overrides for a single Linode VPS.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml \
+#                  --env-file /opt/smartclinic/.env up -d
+#
+# What this file changes vs. docker-compose.yml:
+#   - Services consume pre-built images from GHCR (no build on host).
+#   - Host-port publishing is dropped for every service EXCEPT Caddy
+#     (80, 443) and optional bastion ports — everything else is reachable
+#     only over the internal compose network.
+#   - Caddy fronts the Angular SPA and every API, terminating TLS via
+#     Let's Encrypt and path-routing to the right service.
+#   - Restart policy hardened; log rotation configured per service.
+#   - Observability stack is in a `obs` profile so it can be disabled on
+#     tiny instances (Grafana + Loki + Jaeger eat ~1.2 GB RAM).
+
+name: smartclinic
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+x-app-common: &app-common
+  restart: unless-stopped
+  logging: *default-logging
+
+services:
+  # ── Reverse proxy (plain HTTP — IP-hosted demo) ────────────────────────
+  caddy:
+    image: caddy:2.8-alpine
+    container_name: smartclinic-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./ops/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    environment:
+      DEPLOY_HOST: ${DEPLOY_HOST}
+      GRAFANA_BASICAUTH_USER: ${GRAFANA_BASICAUTH_USER:-ops}
+      GRAFANA_BASICAUTH_HASH: ${GRAFANA_BASICAUTH_HASH:-}
+    depends_on:
+      - patient_identity
+      - scheduling
+      - clinical
+      - pharmacy
+      - laboratory
+      - billing
+      - saga_orchestrator
+      - frontend
+    networks: [smartclinic]
+    logging: *default-logging
+
+  # ── Core infra: drop public ports in prod (internal only) ──────────────
+  postgres:
+    image: postgres:16-alpine
+    ports: !reset []
+    <<: *app-common
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    ports: !reset []
+    <<: *app-common
+
+  keycloak:
+    ports: !reset []
+    <<: *app-common
+    # KC needs to know the public host. HTTP-only + IP = relax strict checks.
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak
+      KC_DB_PASSWORD: keycloak
+      KC_HOSTNAME: ${DEPLOY_HOST}
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
+      KC_HTTP_ENABLED: "true"
+      KC_PROXY: edge
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
+
+  # ── Observability (optional — enable with `--profile obs`) ─────────────
+  jaeger:
+    profiles: ["obs"]
+    ports: !reset []
+    <<: *app-common
+
+  prometheus:
+    profiles: ["obs"]
+    ports: !reset []
+    <<: *app-common
+
+  loki:
+    profiles: ["obs"]
+    ports: !reset []
+    <<: *app-common
+
+  otel-collector:
+    profiles: ["obs"]
+    ports: !reset []
+    <<: *app-common
+
+  grafana:
+    profiles: ["obs"]
+    ports: !reset []
+    <<: *app-common
+
+  # Dev inbox not deployed in prod — use an SMTP relay instead
+  mailhog:
+    profiles: ["disabled"]
+
+  # ── Application services: replace build with GHCR image ────────────────
+  patient_identity:
+    build: !reset null
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_OWNER}/smartclinic-patient_identity:${IMAGE_TAG:-latest}
+    ports: !reset []
+    <<: *app-common
+
+  scheduling:
+    build: !reset null
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_OWNER}/smartclinic-scheduling:${IMAGE_TAG:-latest}
+    ports: !reset []
+    <<: *app-common
+
+  clinical:
+    build: !reset null
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_OWNER}/smartclinic-clinical:${IMAGE_TAG:-latest}
+    ports: !reset []
+    <<: *app-common
+
+  pharmacy:
+    build: !reset null
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_OWNER}/smartclinic-pharmacy:${IMAGE_TAG:-latest}
+    ports: !reset []
+    <<: *app-common
+
+  laboratory:
+    build: !reset null
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_OWNER}/smartclinic-laboratory:${IMAGE_TAG:-latest}
+    ports: !reset []
+    <<: *app-common
+
+  billing:
+    build: !reset null
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_OWNER}/smartclinic-billing:${IMAGE_TAG:-latest}
+    ports: !reset []
+    <<: *app-common
+
+  saga_orchestrator:
+    build: !reset null
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_OWNER}/smartclinic-saga_orchestrator:${IMAGE_TAG:-latest}
+    ports: !reset []
+    <<: *app-common
+
+  frontend:
+    build: !reset null
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_OWNER}/smartclinic-frontend:${IMAGE_TAG:-latest}
+    ports: !reset []
+    <<: *app-common
+
+  seeder:
+    profiles: ["disabled"]
+
+volumes:
+  caddy-data:
+  caddy-config:

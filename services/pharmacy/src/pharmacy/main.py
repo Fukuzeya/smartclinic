@@ -20,7 +20,7 @@ from shared_kernel.infrastructure.sqlalchemy_uow import SqlAlchemyUnitOfWork
 
 from pharmacy.acl.drug_interaction_port import NullDrugInteractionChecker
 from pharmacy.acl.rxnav_client import RxNavDrugInteractionChecker
-from pharmacy.api.routes import router
+from pharmacy.api.routes import router, stock_router
 from pharmacy.application.handlers import DispensePrescriptionHandler
 from pharmacy.infrastructure.clinical_event_handler import make_clinical_event_handler
 from pharmacy.infrastructure.orm import Base  # noqa: F401
@@ -98,7 +98,7 @@ async def _startup_hook(app: FastAPI) -> Callable[[], Awaitable[None]]:
 
 app: FastAPI = create_app(
     settings=settings,
-    routers=(router,),
+    routers=(router, stock_router),
     lifespan_hooks=(_startup_hook,),
     title="Pharmacy",
     version="0.1.0",

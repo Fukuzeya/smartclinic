@@ -41,9 +41,12 @@ class SearchPatients(Query):
     """
 
     name_fragment: str = Field(
-        min_length=1,
+        default="",
         max_length=100,
-        description="Case-insensitive substring match against family name.",
+        description=(
+            "Case-insensitive substring match against family name. "
+            "Empty string returns all patients (paginated)."
+        ),
     )
     limit: int = Field(default=20, ge=1, le=200)
     offset: int = Field(default=0, ge=0)

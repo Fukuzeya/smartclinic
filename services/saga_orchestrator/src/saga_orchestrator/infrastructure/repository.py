@@ -19,7 +19,7 @@ class SqlAlchemySagaRepository:
 
     async def get(self, saga_id: SagaId) -> PatientVisitSaga:
         row = (await self._session.execute(
-            select(SagaRow).where(SagaRow.saga_id == uuid.UUID(str(saga_id)))
+            select(SagaRow).where(SagaRow.saga_id == saga_id.value)
         )).scalar_one_or_none()
         if row is None:
             raise NotFound(f"Saga {saga_id} not found")
@@ -33,15 +33,26 @@ class SqlAlchemySagaRepository:
             return None
         return _row_to_aggregate(row)
 
+    async def update_encounter_id(self, saga_id: SagaId, new_encounter_id: str) -> None:
+        """Re-key the saga row from appointment_id to the real encounter_id."""
+        row = (await self._session.execute(
+            select(SagaRow).where(SagaRow.saga_id == saga_id.value)
+        )).scalar_one_or_none()
+        if row is not None:
+            row.encounter_id = new_encounter_id
+            await self._session.flush()
+
     async def add(self, saga: PatientVisitSaga) -> None:
+        # Pre-compute post-commit version — UoW bumps after flush.
+        final_version = saga.version + len(saga.peek_domain_events())
         row = SagaRow(
-            saga_id=uuid.UUID(str(saga.id)),
+            saga_id=saga.id.value,
             patient_id=saga.patient_id,
             encounter_id=saga.context.encounter_id or "",
             step=saga.step.value,
             status=saga.status.value,
             context=saga.context.model_dump(mode="json"),
-            version=0,
+            version=final_version,
         )
         self._session.add(row)
         await self._session.flush()
@@ -49,7 +60,7 @@ class SqlAlchemySagaRepository:
     async def save(self, saga: PatientVisitSaga) -> None:
         row = (await self._session.execute(
             select(SagaRow).where(
-                SagaRow.saga_id == uuid.UUID(str(saga.id))
+                SagaRow.saga_id == saga.id.value
             )
         )).scalar_one_or_none()
         if row is None:

@@ -77,7 +77,13 @@ class DispensingCompletedV1(PharmacyEvent):
 
 
 class DispensingRejectedV1(PharmacyEvent):
-    """Dispensing blocked by the specification chain — carries all reasons."""
+    """Dispensing blocked by the specification chain — carries all reasons.
+
+    ``out_of_stock_drugs`` lists drugs that specifically failed the
+    ``AllDrugsInStockSpecification``; an empty list means OOS was not the
+    cause (e.g. consent failure or severe interaction).  The Saga Orchestrator
+    uses this field to distinguish OOS-triggered compensation from hard blocks.
+    """
 
     event_type: str = Field(default="pharmacy.dispensing.rejected.v1")
 
@@ -88,8 +94,10 @@ class DispensingRejectedV1(PharmacyEvent):
         prescription_id: uuid.UUID,
         aggregate_version: int,
         patient_id: str,
+        encounter_id: str,
         reasons: list[str],
         rejected_by: str,
+        out_of_stock_drugs: list[str] | None = None,
         trace_id: str | None = None,
         correlation_id: str | None = None,
     ) -> DispensingRejectedV1:
@@ -100,8 +108,10 @@ class DispensingRejectedV1(PharmacyEvent):
             correlation_id=correlation_id,
             payload={
                 "patient_id": patient_id,
+                "encounter_id": encounter_id,
                 "reasons": reasons,
                 "rejected_by": rejected_by,
+                "out_of_stock_drugs": out_of_stock_drugs or [],
             },
         )
 

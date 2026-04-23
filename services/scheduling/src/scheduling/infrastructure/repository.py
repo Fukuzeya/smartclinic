@@ -58,6 +58,29 @@ class SqlAlchemyAppointmentRepository:
         rows = (await self._session.execute(stmt)).scalars().all()
         return [_to_domain(r) for r in rows]
 
+    async def list_all(
+        self,
+        *,
+        on_date: date | None = None,
+        status: str | None = None,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[Appointment]:
+        stmt = select(AppointmentRow)
+        filters = []
+        if on_date is not None:
+            day_start = datetime(on_date.year, on_date.month, on_date.day, tzinfo=timezone.utc)
+            day_end = day_start + timedelta(days=1)
+            filters.append(AppointmentRow.start_at >= day_start)
+            filters.append(AppointmentRow.start_at < day_end)
+        if status is not None:
+            filters.append(AppointmentRow.status == status)
+        if filters:
+            stmt = stmt.where(and_(*filters))
+        stmt = stmt.order_by(AppointmentRow.start_at.desc()).limit(limit).offset(offset)
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [_to_domain(r) for r in rows]
+
     async def list_for_doctor_on_date(
         self, doctor_id: DoctorId, on_date: date
     ) -> list[Appointment]:
@@ -96,9 +119,13 @@ def _to_domain(row: AppointmentRow) -> Appointment:
 
 
 def _to_orm(appt: Appointment) -> AppointmentRow:
+    # Pre-compute post-commit version to match the `aggregate_version` stamped
+    # on the events the UoW will drain at commit (the UoW calls `_bump_version`
+    # *after* this row is already registered with the session).
+    final_version = appt.version + len(appt.peek_domain_events())
     return AppointmentRow(
         id=appt.id.value,
-        version=appt.version,
+        version=final_version,
         patient_id=appt.patient_id.value,
         doctor_id=appt.doctor_id.value,
         start_at=appt.slot.start_at,

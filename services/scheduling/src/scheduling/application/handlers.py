@@ -17,6 +17,7 @@ from scheduling.application.commands import (
     RescheduleAppointment,
 )
 from scheduling.application.queries import (
+    GetAllAppointments,
     GetAppointment,
     GetAppointmentsForDoctorOnDate,
     GetAppointmentsForPatient,
@@ -154,4 +155,18 @@ class GetAppointmentsForDoctorOnDateHandler:
         repo = SqlAlchemyAppointmentRepository(self._session)
         return await repo.list_for_doctor_on_date(
             DoctorId(value=query.doctor_id), query.on_date
+        )
+
+
+class GetAllAppointmentsHandler:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def __call__(self, query: GetAllAppointments) -> list[Appointment]:
+        repo = SqlAlchemyAppointmentRepository(self._session)
+        return await repo.list_all(
+            on_date=query.on_date,
+            status=query.status,
+            limit=query.limit,
+            offset=query.offset,
         )

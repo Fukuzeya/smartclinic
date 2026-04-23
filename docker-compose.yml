@@ -115,7 +115,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 30
-      start_period: 60s
+      start_period: 120s
     networks: [smartclinic]
     deploy:
       resources:
@@ -262,7 +262,7 @@ services:
     restart: unless-stopped
     environment:
       SERVICE_NAME: patient_identity
-      ENVIRONMENT: dev
+      ENVIRONMENT: local
       DATABASE_URL: postgresql+asyncpg://patient_identity:patient_identity@postgres:5432/patient_identity
       RABBITMQ_URL: amqp://smartclinic:smartclinic@rabbitmq:5672/
       RABBITMQ_EXCHANGE: smartclinic.events
@@ -278,6 +278,12 @@ services:
       rabbitmq:       { condition: service_healthy }
       keycloak:       { condition: service_healthy }
       otel-collector: { condition: service_started }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     networks: [smartclinic]
 
   scheduling:
@@ -288,7 +294,7 @@ services:
     restart: unless-stopped
     environment:
       SERVICE_NAME: scheduling
-      ENVIRONMENT: dev
+      ENVIRONMENT: local
       DATABASE_URL: postgresql+asyncpg://scheduling:scheduling@postgres:5432/scheduling
       RABBITMQ_URL: amqp://smartclinic:smartclinic@rabbitmq:5672/
       RABBITMQ_EXCHANGE: smartclinic.events
@@ -297,6 +303,8 @@ services:
       OIDC_JWKS_URL: http://keycloak:8080/realms/smartclinic/protocol/openid-connect/certs
       OIDC_AUDIENCE: smartclinic-api
       LOG_LEVEL: INFO
+      KEYCLOAK_BASE_URL: http://keycloak:8080
+      KEYCLOAK_REALM: smartclinic
     ports:
       - "8002:8000"
     depends_on:
@@ -304,6 +312,12 @@ services:
       rabbitmq:       { condition: service_healthy }
       keycloak:       { condition: service_healthy }
       otel-collector: { condition: service_started }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     networks: [smartclinic]
 
   clinical:
@@ -314,7 +328,7 @@ services:
     restart: unless-stopped
     environment:
       SERVICE_NAME: clinical
-      ENVIRONMENT: dev
+      ENVIRONMENT: local
       DATABASE_URL: postgresql+asyncpg://clinical:clinical@postgres:5432/clinical_write
       RABBITMQ_URL: amqp://smartclinic:smartclinic@rabbitmq:5672/
       RABBITMQ_EXCHANGE: smartclinic.events
@@ -331,6 +345,12 @@ services:
       rabbitmq:       { condition: service_healthy }
       keycloak:       { condition: service_healthy }
       otel-collector: { condition: service_started }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     networks: [smartclinic]
 
   pharmacy:
@@ -341,7 +361,7 @@ services:
     restart: unless-stopped
     environment:
       SERVICE_NAME: pharmacy
-      ENVIRONMENT: dev
+      ENVIRONMENT: local
       DATABASE_URL: postgresql+asyncpg://pharmacy:pharmacy@postgres:5432/pharmacy
       RABBITMQ_URL: amqp://smartclinic:smartclinic@rabbitmq:5672/
       RABBITMQ_EXCHANGE: smartclinic.events
@@ -360,6 +380,12 @@ services:
       rabbitmq:       { condition: service_healthy }
       keycloak:       { condition: service_healthy }
       otel-collector: { condition: service_started }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     networks: [smartclinic]
 
   laboratory:
@@ -370,7 +396,7 @@ services:
     restart: unless-stopped
     environment:
       SERVICE_NAME: laboratory
-      ENVIRONMENT: dev
+      ENVIRONMENT: local
       DATABASE_URL: postgresql+asyncpg://laboratory:laboratory@postgres:5432/laboratory
       RABBITMQ_URL: amqp://smartclinic:smartclinic@rabbitmq:5672/
       RABBITMQ_EXCHANGE: smartclinic.events
@@ -387,6 +413,12 @@ services:
       rabbitmq:       { condition: service_healthy }
       keycloak:       { condition: service_healthy }
       otel-collector: { condition: service_started }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     networks: [smartclinic]
 
   billing:
@@ -397,7 +429,7 @@ services:
     restart: unless-stopped
     environment:
       SERVICE_NAME: billing
-      ENVIRONMENT: dev
+      ENVIRONMENT: local
       DATABASE_URL: postgresql+asyncpg://billing:billing@postgres:5432/billing
       RABBITMQ_URL: amqp://smartclinic:smartclinic@rabbitmq:5672/
       RABBITMQ_EXCHANGE: smartclinic.events
@@ -417,6 +449,12 @@ services:
       rabbitmq:       { condition: service_healthy }
       keycloak:       { condition: service_healthy }
       otel-collector: { condition: service_started }
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/health/live')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     networks: [smartclinic]
 
   # ---- Angular SPA (served via nginx) -------------------------------------
@@ -432,7 +470,7 @@ services:
       keycloak:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -446,7 +484,7 @@ services:
     restart: unless-stopped
     environment:
       SERVICE_NAME: saga_orchestrator
-      ENVIRONMENT: dev
+      ENVIRONMENT: local
       DATABASE_URL: postgresql+asyncpg://saga:saga@postgres:5432/saga
       RABBITMQ_URL: amqp://smartclinic:smartclinic@rabbitmq:5672/
       RABBITMQ_EXCHANGE: smartclinic.events
@@ -464,3 +502,40 @@ services:
       keycloak:       { condition: service_healthy }
       otel-collector: { condition: service_started }
     networks: [smartclinic]
+
+  # ---- Demo seed — waits for all services healthy, then runs once -----------
+  seeder:
+    image: python:3.12-slim
+    container_name: smartclinic-seeder
+    restart: "no"
+    command: sh -c "pip install httpx psycopg2-binary --quiet && python /seed/seed.py"
+    volumes:
+      - ./ops/seed:/seed:ro
+    environment:
+      PATIENT_API:   http://patient_identity:8000
+      SCHEDULE_API:  http://scheduling:8000
+      CLINICAL_API:  http://clinical:8000
+      PHARMACY_API:  http://pharmacy:8000
+      LAB_API:       http://laboratory:8000
+      BILLING_API:   http://billing:8000
+      KEYCLOAK_URL:  http://keycloak:8080
+      PHARMACY_DB_HOST: postgres
+      PHARMACY_DB_PORT: "5432"
+      PHARMACY_DB_NAME: pharmacy
+      PHARMACY_DB_USER: pharmacy
+      PHARMACY_DB_PASS: pharmacy
+      PATIENT_DB_HOST: postgres
+      PATIENT_DB_PORT: "5432"
+      PATIENT_DB_NAME: patient_identity
+      PATIENT_DB_USER: patient_identity
+      PATIENT_DB_PASS: patient_identity
+    depends_on:
+      patient_identity: { condition: service_healthy }
+      scheduling:       { condition: service_healthy }
+      clinical:         { condition: service_healthy }
+      pharmacy:         { condition: service_healthy }
+      laboratory:       { condition: service_healthy }
+      billing:          { condition: service_healthy }
+      keycloak:         { condition: service_healthy }
+    networks: [smartclinic]
+    profiles: [seed]

@@ -38,6 +38,12 @@ export class AuthService {
   readonly isPharmacist = computed(
     () => this._profile()?.roles.has('pharmacist') ?? false
   );
+  readonly isLabTechnician = computed(
+    () => this._profile()?.roles.has('lab_technician') ?? false
+  );
+  readonly isAccounts = computed(
+    () => this._profile()?.roles.has('accounts') ?? false
+  );
 
   async init(): Promise<void> {
     const authenticated = await this._keycloak.init({

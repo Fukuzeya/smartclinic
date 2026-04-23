@@ -36,6 +36,8 @@ export interface RecordResultRequest {
   test_name: string;
   value: string;
   unit?: string;
+  reference_range_lower?: string;
+  reference_range_upper?: string;
   interpretation: Interpretation;
   notes?: string;
 }

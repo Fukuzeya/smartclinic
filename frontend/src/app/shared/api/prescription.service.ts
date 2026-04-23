@@ -20,9 +20,16 @@ export class PrescriptionService {
     return this.http.get<Prescription>(`${this.base}/prescriptions/${prescriptionId}`);
   }
 
-  dispense(prescriptionId: string): Observable<{ outcome: string; reasons: string[]; warnings: string[] }> {
-    return this.http.post<{ outcome: string; reasons: string[]; warnings: string[] }>(
+  dispense(prescriptionId: string): Observable<{ outcome: string; reasons: string[]; out_of_stock_drugs: string[]; warnings: string[] }> {
+    return this.http.post<{ outcome: string; reasons: string[]; out_of_stock_drugs: string[]; warnings: string[] }>(
       `${this.base}/prescriptions/${prescriptionId}/dispense`, {}
+    );
+  }
+
+  dispensePartial(prescriptionId: string, drugNames: string[]): Observable<void> {
+    return this.http.post<void>(
+      `${this.base}/prescriptions/${prescriptionId}/dispense-partial`,
+      { drug_names: drugNames }
     );
   }
 

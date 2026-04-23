@@ -19,3 +19,5 @@ class SchedulingSettings(SharedSettings):
     max_search_results: int = Field(default=50, ge=1, le=200)
     # Queue from which this service consumes patient events
     patient_events_queue: str = "scheduling.patient.events"
+    keycloak_base_url: str = Field(default="http://keycloak:8080")
+    keycloak_realm: str = Field(default="smartclinic")

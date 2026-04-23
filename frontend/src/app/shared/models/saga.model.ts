@@ -2,6 +2,7 @@ export type SagaStep =
   | 'awaiting_encounter'
   | 'encounter_open'
   | 'awaiting_lab'
+  | 'substitution_required'
   | 'awaiting_payment'
   | 'completed'
   | 'cancelled';
@@ -15,6 +16,8 @@ export interface SagaContext {
   lab_order_ids: string[];
   lab_orders_completed: string[];
   encounter_closed: boolean;
+  blocked_prescription_id?: string;
+  out_of_stock_drugs: string[];
 }
 
 export interface PatientVisitSaga {

@@ -72,3 +72,15 @@ class AppointmentListResponse(_APIBase):
 class BookAppointmentResponse(_APIBase):
     appointment_id: uuid.UUID
     message: str = "Appointment booked successfully."
+
+
+class DoctorSummary(_APIBase):
+    doctor_id: str
+    display_name: str
+    username: str
+    email: str | None = None
+
+
+class DoctorListResponse(_APIBase):
+    items: list[DoctorSummary]
+    total: int

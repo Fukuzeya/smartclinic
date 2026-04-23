@@ -74,12 +74,26 @@ class SqlAlchemyPatientRepository:
                 f"expected {patient.version}, got {row.version}"
             )
         _update_row(row, patient)
-        # Sync consent rows — delete-all-then-reinsert keeps it simple and
-        # correct given that consents are a small, bounded collection.
-        for c_row in list(row.consents):
-            await self._session.delete(c_row)
+        # Sync consent rows via upsert-by-purpose. We can't delete-then-reinsert
+        # because SQLAlchemy orders INSERTs before DELETEs within a single flush,
+        # which would violate the (patient_id, purpose) unique constraint when
+        # re-granting a previously revoked consent.
+        existing_by_purpose = {c.purpose: c for c in row.consents}
+        aggregate_purposes = {c.purpose.value for c in patient.consents}
+        for purpose, c_row in list(existing_by_purpose.items()):
+            if purpose not in aggregate_purposes:
+                await self._session.delete(c_row)
         for consent in patient.consents:
-            row.consents.append(_consent_to_orm(patient.id.value.hex, consent))
+            existing = existing_by_purpose.get(consent.purpose.value)
+            if existing is None:
+                row.consents.append(
+                    _consent_to_orm(str(patient.id.value), consent)
+                )
+            else:
+                existing.granted_at = consent.granted_at
+                existing.granted_by = consent.granted_by
+                existing.revoked_at = consent.revoked_at
+                existing.revoked_by = consent.revoked_by
 
 
 # ---------------------------------------------------------------------------
@@ -110,9 +124,15 @@ def _to_domain(row: PatientRow) -> Patient:
 
 
 def _to_orm(patient: Patient) -> PatientRow:
+    # Account for events already queued in this transaction. The UoW calls
+    # `_bump_version()` at commit time — once per event — but by then the ORM
+    # row has already been added to the session with whatever version we set
+    # here. Pre-compute the post-commit version so the persisted row lines up
+    # with the aggregate_version stamped on the emitted events.
+    final_version = patient.version + len(patient.peek_domain_events())
     row = PatientRow(
         id=patient.id.value,
-        version=patient.version,
+        version=final_version,
         given_name=patient.name.given,
         middle_name=patient.name.middle,
         family_name=patient.name.family,

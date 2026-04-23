@@ -27,7 +27,7 @@ class SqlAlchemyInvoiceRepository:
     async def get(self, invoice_id: BillId) -> Invoice:
         row = (await self._session.execute(
             select(InvoiceRow).where(
-                InvoiceRow.invoice_id == uuid.UUID(str(invoice_id))
+                InvoiceRow.invoice_id == invoice_id.value
             )
         )).scalar_one_or_none()
         if row is None:
@@ -43,15 +43,18 @@ class SqlAlchemyInvoiceRepository:
         return _row_to_aggregate(row)
 
     async def add(self, invoice: Invoice) -> None:
+        # Pre-compute post-commit version — the UoW bumps the aggregate once
+        # per drained event *after* this row is registered with the session.
+        final_version = invoice.version + len(invoice.peek_domain_events())
         row = InvoiceRow(
-            invoice_id=uuid.UUID(str(invoice.id)),
+            invoice_id=invoice.id.value,
             patient_id=invoice.patient_id,
             encounter_id=invoice.encounter_id,
             currency=invoice.currency.value,
             status=invoice.status.value,
             lines=[ln.model_dump(mode="json") for ln in invoice.lines],
             payments=[],
-            version=0,
+            version=final_version,
         )
         self._session.add(row)
         await self._session.flush()
@@ -59,7 +62,7 @@ class SqlAlchemyInvoiceRepository:
     async def save(self, invoice: Invoice) -> None:
         row = (await self._session.execute(
             select(InvoiceRow).where(
-                InvoiceRow.invoice_id == uuid.UUID(str(invoice.id))
+                InvoiceRow.invoice_id == invoice.id.value
             )
         )).scalar_one_or_none()
         if row is None:

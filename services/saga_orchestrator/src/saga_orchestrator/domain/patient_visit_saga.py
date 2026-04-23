@@ -37,6 +37,7 @@ from saga_orchestrator.domain.events import (
     PatientVisitSagaCompletedV1,
     PatientVisitSagaStartedV1,
     SagaStepAdvancedV1,
+    SagaSubstitutionRequiredV1,
 )
 from saga_orchestrator.domain.value_objects import SagaContext, SagaStatus, SagaStep
 
@@ -90,7 +91,7 @@ class PatientVisitSaga(AggregateRoot[SagaId]):
             encounter_id=encounter_id,
         )
         instance._record(PatientVisitSagaStartedV1.build(
-            saga_id=uuid.UUID(str(saga_id)),
+            saga_id=saga_id.value,
             aggregate_version=instance._next_version(),
             patient_id=patient_id,
             appointment_id=appointment_id,
@@ -193,11 +194,71 @@ class PatientVisitSaga(AggregateRoot[SagaId]):
         self._step = SagaStep.COMPLETED
         self._status = SagaStatus.COMPLETED
         self._record(PatientVisitSagaCompletedV1.build(
-            saga_id=uuid.UUID(str(self.id)),
+            saga_id=self.id.value,
             aggregate_version=self._next_version(),
             patient_id=self._patient_id,
             encounter_id=self._context.encounter_id or "",
         ))
+
+    def on_dispensing_blocked_oos(
+        self,
+        *,
+        prescription_id: str,
+        out_of_stock_drugs: list[str],
+    ) -> None:
+        """Pharmacy: dispensing blocked because one or more drugs are out of stock.
+
+        This is the saga compensating action.  The saga transitions to
+        SUBSTITUTION_REQUIRED and emits SagaSubstitutionRequiredV1 which the
+        Clinical context (or a notification adapter) should handle to alert
+        the prescribing doctor.
+
+        Once the doctor issues a new prescription the saga resumes from
+        ENCOUNTER_OPEN via a fresh ``clinical.encounter.prescription_issued.v1``
+        event received by the clinical context.
+        """
+        self._assert_active()
+        if self._step in _TERMINAL:
+            return
+        self._context = SagaContext(**{
+            **self._context.model_dump(),
+            "blocked_prescription_id": prescription_id,
+            "out_of_stock_drugs": out_of_stock_drugs,
+        })
+        prev_step = self._step
+        self._step = SagaStep.SUBSTITUTION_REQUIRED
+        self._record(SagaSubstitutionRequiredV1.build(
+            saga_id=self.id.value,
+            aggregate_version=self._next_version(),
+            patient_id=self._patient_id,
+            encounter_id=self._context.encounter_id or "",
+            prescription_id=prescription_id,
+            out_of_stock_drugs=out_of_stock_drugs,
+        ))
+        self._record(SagaStepAdvancedV1.build(
+            saga_id=self.id.value,
+            aggregate_version=self._next_version(),
+            from_step=prev_step.value,
+            to_step=SagaStep.SUBSTITUTION_REQUIRED.value,
+            trigger_event_type="pharmacy.dispensing.rejected.v1",
+        ))
+
+    def on_substitute_prescription_issued(self) -> None:
+        """Doctor issued a substitute prescription after OOS compensation.
+
+        The saga resumes toward AWAITING_PAYMENT.  If labs are still pending
+        it reverts to AWAITING_LAB; otherwise it goes to ENCOUNTER_OPEN so
+        the new prescription can flow through pharmacy again.
+        """
+        self._assert_active()
+        if self._step != SagaStep.SUBSTITUTION_REQUIRED:
+            return
+        target = (
+            SagaStep.AWAITING_LAB
+            if self._context.lab_order_ids and not self._context.all_labs_completed
+            else SagaStep.ENCOUNTER_OPEN
+        )
+        self._advance(target, "clinical.encounter.prescription_issued.v1")
 
     def on_appointment_cancelled(self) -> None:
         """Scheduling: appointment was cancelled."""
@@ -235,7 +296,7 @@ class PatientVisitSaga(AggregateRoot[SagaId]):
         from_step = self._step
         self._step = to
         self._record(SagaStepAdvancedV1.build(
-            saga_id=uuid.UUID(str(self.id)),
+            saga_id=self.id.value,
             aggregate_version=self._next_version(),
             from_step=from_step.value,
             to_step=to.value,
@@ -246,7 +307,7 @@ class PatientVisitSaga(AggregateRoot[SagaId]):
         self._step = SagaStep.CANCELLED
         self._status = SagaStatus.CANCELLED
         self._record(PatientVisitSagaCancelledV1.build(
-            saga_id=uuid.UUID(str(self.id)),
+            saga_id=self.id.value,
             aggregate_version=self._next_version(),
             reason=reason,
             trigger_event_type=trigger,

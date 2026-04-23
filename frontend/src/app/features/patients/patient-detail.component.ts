@@ -13,67 +13,74 @@ import { AuthService } from '../../core/auth/auth.service';
   imports: [RouterLink, SlicePipe],
   template: `
     <div class="page-header">
-      <h1>Patient detail</h1>
-      <a routerLink="/patients" class="btn btn-secondary">← Patients</a>
+      <div>
+        <h1 class="page-title">Patient</h1>
+        <p class="page-subtitle">Demographic record and consents</p>
+      </div>
+      <a routerLink="/patients" class="btn-secondary">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+        Patients
+      </a>
     </div>
 
     @if (loading()) {
-      <div class="loading-spinner">Loading…</div>
+      <div class="loading">Loading…</div>
     } @else if (error()) {
-      <div class="alert alert-error">{{ error() }}</div>
+      <div class="alert-error">{{ error() }}</div>
     } @else if (patient()) {
-      <div class="card">
-        <div class="detail-header">
-          <div>
-            <h2>{{ patient()!.display_name }}</h2>
-            <span class="sub">{{ patient()!.sex }} · DOB {{ patient()!.date_of_birth }}</span>
-          </div>
-          @if (auth.isReceptionist()) {
-            <a [routerLink]="['/appointments', 'new']"
-               [queryParams]="{ patient_id: patient()!.patient_id }"
-               class="btn btn-primary">
-              + Book appointment
-            </a>
-          }
+      <div class="card patient-hero">
+        <div class="patient-avatar-lg">{{ patient()!.display_name[0] }}</div>
+        <div class="patient-hero-info">
+          <h2 class="patient-name">{{ patient()!.display_name }}</h2>
+          <p class="patient-meta">{{ patient()!.sex }} · DOB {{ patient()!.date_of_birth }}</p>
+          <code class="patient-id">{{ patient()!.patient_id }}</code>
         </div>
-
-        <div class="detail-grid">
-          <section>
-            <h3>Contact</h3>
-            <dl>
-              <dt>Email</dt><dd>{{ patient()!.email ?? '—' }}</dd>
-              <dt>Phone</dt><dd>{{ patient()!.phone ?? '—' }}</dd>
-            </dl>
-          </section>
-
-          @if (patient()!.address) {
-            <section>
-              <h3>Address</h3>
-              <dl>
-                <dt>Street</dt><dd>{{ patient()!.address!.street }}</dd>
-                <dt>City</dt><dd>{{ patient()!.address!.city }}</dd>
-                <dt>Province</dt><dd>{{ patient()!.address!.province }}</dd>
-              </dl>
-            </section>
-          }
-
-          @if (patient()!.next_of_kin) {
-            <section>
-              <h3>Next of kin</h3>
-              <dl>
-                <dt>Name</dt><dd>{{ patient()!.next_of_kin!.display_name }}</dd>
-                <dt>Relationship</dt><dd>{{ patient()!.next_of_kin!.relationship }}</dd>
-                <dt>Phone</dt><dd>{{ patient()!.next_of_kin!.phone }}</dd>
-              </dl>
-            </section>
-          }
-        </div>
+        @if (auth.isReceptionist()) {
+          <a [routerLink]="['/appointments', 'new']"
+             [queryParams]="{ patient_id: patient()!.patient_id }"
+             class="btn-primary">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Book Appointment
+          </a>
+        }
       </div>
 
-      <div class="card">
-        <h3>Consents</h3>
+      <div class="detail-grid" style="margin-top:16px">
+        <section class="card">
+          <h3 class="section-heading">Contact</h3>
+          <dl class="kv-list">
+            <dt>Email</dt><dd>{{ patient()!.email ?? '—' }}</dd>
+            <dt>Phone</dt><dd>{{ patient()!.phone ?? '—' }}</dd>
+          </dl>
+        </section>
+
+        @if (patient()!.address) {
+          <section class="card">
+            <h3 class="section-heading">Address</h3>
+            <dl class="kv-list">
+              <dt>Street</dt><dd>{{ patient()!.address!.street }}</dd>
+              <dt>City</dt><dd>{{ patient()!.address!.city }}</dd>
+              <dt>Province</dt><dd>{{ patient()!.address!.province }}</dd>
+            </dl>
+          </section>
+        }
+
+        @if (patient()!.next_of_kin) {
+          <section class="card">
+            <h3 class="section-heading">Next of Kin</h3>
+            <dl class="kv-list">
+              <dt>Name</dt><dd>{{ patient()!.next_of_kin!.display_name }}</dd>
+              <dt>Relationship</dt><dd>{{ patient()!.next_of_kin!.relationship }}</dd>
+              <dt>Phone</dt><dd>{{ patient()!.next_of_kin!.phone }}</dd>
+            </dl>
+          </section>
+        }
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3 class="section-heading">Consents</h3>
         @if (patient()!.consents.length === 0) {
-          <p class="no-consents">No consent records.</p>
+          <p class="muted">No consent records.</p>
         } @else {
           <table class="data-table">
             <thead>
@@ -99,18 +106,25 @@ import { AuthService } from '../../core/auth/auth.service';
     }
   `,
   styles: [`
-    .detail-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      margin-bottom: 20px;
+    .patient-hero {
+      display: flex; align-items: center; gap: 20px; padding: 24px;
     }
-    .sub { color: #64748b; font-size: 0.9rem; }
-    .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px; }
-    section h3 { margin-bottom: 10px; font-size: 0.9rem; color: #475569; text-transform: uppercase; letter-spacing: 0.04em; }
-    dl { display: grid; grid-template-columns: 120px 1fr; gap: 6px 12px; font-size: 0.9rem; }
-    dt { color: #64748b; font-weight: 500; }
-    .no-consents { color: #94a3b8; font-size: 0.9rem; margin-top: 8px; }
+    .patient-avatar-lg {
+      width: 60px; height: 60px; border-radius: 50%;
+      background: var(--clr-brand); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.5rem; font-weight: 700; flex-shrink: 0;
+    }
+    .patient-hero-info { flex: 1; }
+    .patient-name { font-size: 1.25rem; font-weight: 700; color: var(--clr-gray-800); margin: 0 0 2px; }
+    .patient-meta { color: var(--clr-gray-500); font-size: 0.875rem; margin: 0 0 4px; }
+    .patient-id { font-size: 0.75rem; color: var(--clr-gray-400); }
+    .detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+    .section-heading { font-size: 0.75rem; font-weight: 700; color: var(--clr-gray-400); text-transform: uppercase; letter-spacing: 0.06em; margin: 0 0 12px; }
+    .kv-list { display: grid; grid-template-columns: 110px 1fr; gap: 6px 12px; font-size: 0.875rem; }
+    .kv-list dt { color: var(--clr-gray-500); font-weight: 500; }
+    .kv-list dd { margin: 0; color: var(--clr-gray-800); }
+    .muted { color: var(--clr-gray-400); font-size: 0.875rem; }
   `],
 })
 export class PatientDetailComponent implements OnInit {

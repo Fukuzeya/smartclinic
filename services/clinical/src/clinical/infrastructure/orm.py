@@ -71,6 +71,34 @@ class EventStoreRecord(Base):
     chain_hash: Mapped[str] = mapped_column(String(64), nullable=False)
 
 
+class AISuggestionRecord(Base):
+    """Audit log for AI-generated clinical suggestions (ADR 0013).
+
+    Kept separate from ``clinical_events`` so that AI suggestions are never
+    part of the medico-legal event chain.  Each row records who requested the
+    suggestion, which model produced it, and whether the clinician accepted or
+    discarded it.
+    """
+
+    __tablename__ = "ai_suggestions"
+    __table_args__ = (
+        Index("ix_ai_suggestions_encounter_id", "encounter_id"),
+        Index("ix_ai_suggestions_requested_by", "requested_by"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    encounter_id: Mapped[uuid.UUID] = mapped_column(nullable=False)
+    suggestion_type: Mapped[str] = mapped_column(String(64), nullable=False)  # soap_draft | drug_safety
+    model_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    prompt_summary: Mapped[str] = mapped_column(Text, nullable=False)
+    suggestion_text: Mapped[str] = mapped_column(Text, nullable=False)
+    requested_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    decision: Mapped[str | None] = mapped_column(String(16), nullable=True)   # accepted | discarded
+    decided_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class EncounterSummaryRow(Base):
     """CQRS read model — denormalised projection of all encounter events.
 

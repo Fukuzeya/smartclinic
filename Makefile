@@ -38,6 +38,16 @@ up: env  ## start the full production-like stack
 	@echo "Waiting for core services to become healthy..."
 	$(COMPOSE) ps
 
+.PHONY: up-seed
+up-seed: env  ## start the stack AND auto-seed demo data (runs seeder container)
+	$(COMPOSE) --profile seed up -d --build
+	@echo
+	@echo "Stack started. Seeder will run in ~25s. Watch with: make logs-seed"
+
+.PHONY: logs-seed
+logs-seed:  ## tail seeder container output
+	$(COMPOSE) logs -f seeder
+
 .PHONY: down
 down:  ## stop the stack (keeps volumes)
 	$(COMPOSE) down
@@ -132,8 +142,13 @@ shell:  ## open a Python shell with the workspace packages available
 	$(UV) run python
 
 .PHONY: seed
-seed:  ## run database seed scripts (idempotent)
-	@echo "Seed not yet implemented — run make up to auto-create tables."
+seed:  ## seed demo data for presentation (3 patients, 3 encounters, drug stock)
+	@echo "Seeding SmartClinic demo data…"
+	$(UV) run python ops/seed/seed.py
+
+.PHONY: seed-check
+seed-check:  ## install seed dependencies if missing
+	$(UV) add --dev httpx
 
 .PHONY: infra-up
 infra-up: env  ## start only the infrastructure layer (no bounded-context services)

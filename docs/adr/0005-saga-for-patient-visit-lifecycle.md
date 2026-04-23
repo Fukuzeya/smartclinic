@@ -89,6 +89,40 @@ Chosen option: **Option 2 — Orchestration**, implemented in the
 | `billing.invoice.payment_failed` (future)       | `IssueReminder` (no structural rollback)       |
 | Encounter finalisation timeout (> 24h open)     | `ForceCloseEncounter`, flag for review         |
 
+## Quantified Trade-offs
+
+| Attribute | Choreography | **Orchestration** (chosen) | Hybrid |
+|---|---|---|---|
+| Coupling | Lowest (event-only) | Mild (orchestrator knows event shapes) | Low happy path / Medium compensation |
+| "Where is visit V?" query | Full event log scan across 5 topics | One row in `patient_visit_sagas` | Two places |
+| Compensation implementation | Duplicated in each service | Centralised in one aggregate | Split |
+| Adding a new workflow step | Change N services | Change 1 (orchestrator) | Depends on step type |
+| Testability | Requires all consumers running | Unit-testable state machine | Mixed |
+| Blast radius of orchestrator failure | N/A (no orchestrator) | New transitions halt; state safe in DB | Partial |
+| Lines of compensation logic (est.) | ~50/service × 6 services = 300 | ~80 total in PatientVisitSaga | ~120 |
+
+**Key insight**: with 6 bounded contexts and required OOS compensation,
+choreography scatters ~300 lines of compensation logic across 6 services with
+no single authoritative view of workflow state. Orchestration consolidates
+this to ~80 lines in a testable domain aggregate with an observable state
+machine.
+
+## Why not the alternatives?
+
+**Choreography**: with 6 contexts the workflow is an *emergent property* of
+18+ event subscriptions. When the OOS compensation branch was added (ADR-0003
+extension), it required changes to `pharmacy`, `saga`, and `clinical` services
+in the choreography model. In the orchestration model it required changes to
+one aggregate (`PatientVisitSaga.on_dispensing_blocked_oos`) and one event
+(`SagaSubstitutionRequiredV1`). This is empirically validated by the
+implementation: see `services/saga_orchestrator/src/saga_orchestrator/domain/patient_visit_saga.py`.
+
+**Hybrid**: the compensation-only-orchestrator approach was considered but
+rejected because the "happy path" and "compensation path" share saga context
+(e.g., `has_lab_order` determines the resumption step after substitution). A
+single state machine encoding both paths avoids a synchronisation problem
+between the two control planes.
+
 ## Links
 - ADR-0002, ADR-0009.
 - Garcia-Molina & Salem 1987, "Sagas".

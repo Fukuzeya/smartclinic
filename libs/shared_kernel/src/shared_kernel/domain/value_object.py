@@ -36,7 +36,9 @@ class ValueObject(BaseModel):
     model_config = ConfigDict(
         frozen=True,
         extra="forbid",
-        strict=True,
+        # Strict mode globally would break JSON round-tripping of domain-event
+        # payloads (StrEnum → string, Decimal → string) — field-level validators
+        # remain the canonical enforcement point for invariants.
         validate_assignment=True,  # harmless with frozen, informative with mypy
         populate_by_name=True,
     )

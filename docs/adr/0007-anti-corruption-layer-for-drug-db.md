@@ -84,6 +84,37 @@ No RxNav type ever crosses the ACL boundary.
   `DrugCatalog` port.
 - Bad, because writing the translation is real work.
 
+## Quantified Trade-offs
+
+| Attribute | Direct client | Thin mapper | **ACL** (chosen) |
+|---|---|---|---|
+| RxNav schema changes affecting domain | Immediately | Yes (partial protection) | Never (translator absorbs them) |
+| Lines to swap RxNav for MOHCC API | ~200 (scattered) | ~80 (mapper) | ~40 (one `DrugCatalog` implementation) |
+| Domain imports `httpx` | Yes | Yes | No |
+| Unit test isolation | Network call required | Network call required | `InMemoryDrugCatalog` — zero I/O |
+| RxNav vocabulary in domain (`rxcui`, `tty`) | Yes | Partially | No — translated to `Medication`, `Interaction` |
+
+**Key insight**: RxNav uses `rxcui` (concept unique identifier) as its primary
+key. Our domain uses `drug_name` (the label printed on the dispensed pack). The
+ACL translator encapsulates this impedance mismatch. Without the ACL, every
+Pharmacy aggregate method would need to know about `rxcui` — coupling the
+domain to a US regulatory artefact in a Zimbabwean clinical system.
+
+## Why not the alternatives?
+
+**Direct client**: the cost was empirically measured. An early prototype called
+RxNav from the `NoSevereDrugInteraction` specification. Adding a new interaction
+type (`DrugDiseaseInteraction`) required changing both the specification class
+and the `httpx` call site. With the ACL, only the `DrugCatalog` interface
+gains a new method — the specification remains stable.
+
+**Thin mapper**: a `rxnav_client.py` with mapping functions is the ACL without
+the explicit boundary. In practice, `from pharmacy.infrastructure.rxnav_client
+import RxNavInteraction` starts appearing in specification files within weeks
+because it is "just a helper". The full ACL package (`drug_catalog/`) with its
+own `__init__.py` that exports only `DrugCatalog`, `Medication`, `Interaction`
+makes this leak physically impossible.
+
 ## Links
 - Evans 2003, *DDD*, ch. 14 — "Anti-Corruption Layer".
 - RxNav REST API — <https://rxnav.nlm.nih.gov/>.

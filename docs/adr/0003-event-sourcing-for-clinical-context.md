@@ -81,6 +81,37 @@ Event Sourcing is **applied only to the Clinical context**. The other
 five contexts use CRUD + outbox. This is deliberate: ES is expensive
 and the rest of the domain does not demand it.
 
+## Quantified Trade-offs
+
+| Attribute | CRUD + audit | Bitemporal | **Event Sourcing** (chosen) |
+|---|---|---|---|
+| Temporal query complexity | O(n log n) reconstruction from diffs | O(1) SQL range | O(events) replay; O(1) with snapshot |
+| Tamper-evidence integration (ADR-0012) | Requires parallel structure | Not natural | Native — append-only log is the source |
+| Cross-context event publication | Extra step (pull state, serialise) | Extra step | Events are already in publish format |
+| Write path overhead | 1 × SQL UPDATE | 2 × SQL (application + system time) | 1 × INSERT (append-only; no locks on aggregate row) |
+| Schema migration complexity | Low | Medium | High — event upcasters needed for schema changes; mitigated by versioned types (`*.v1`) |
+| Storage growth over 5 years (est.) | ~2 MB / 1000 patients | ~3 MB / 1000 patients | ~8 MB / 1000 patients (acceptable; read models remain small) |
+| Developer training cost | 0 (familiar) | Low–Medium | Medium-High — mitigated by Shared Kernel base classes |
+
+**Marginal cost accepted**: ~6 MB extra storage per 1000 patients and one extra
+abstraction layer in return for: (a) free temporal query, (b) hash-chain
+tamper evidence, (c) zero-extra-work domain event publication.
+
+## Why not the alternatives?
+
+**CRUD + audit tables**: An audit trigger records diffs, not intent. A
+DBA with `UPDATE` privilege can alter the main row without touching the
+audit row if the trigger is disabled during maintenance. This fails the
+medico-legal tamper-evidence requirement. The ADR-0012 hash chain cannot be
+built over a mutable row without prohibitively expensive re-hashing.
+
+**Bitemporal modelling**: Records *when* a fact was valid but not *why* it
+changed. Reconstructing the physician's decision context at 14:03 still
+requires interpreting raw column diffs. Standard ORM support for SQL:2011
+temporal tables is poor in Python's ecosystem (SQLAlchemy requires manual
+`WITHOUT OVERLAPS` constraints). The query model is SQL-native but the write
+model is still mutable, making the hash chain structurally impossible.
+
 ## Links
 - ADR-0002, ADR-0004, ADR-0009, ADR-0012.
 - Fowler, "Event Sourcing" — <https://martinfowler.com/eaaDev/EventSourcing.html>.

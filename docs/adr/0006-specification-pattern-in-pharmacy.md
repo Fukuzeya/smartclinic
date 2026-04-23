@@ -87,6 +87,38 @@ Pharmacy composes domain-specific specs from it:
 - Good, because `explain()` is a direct UX win.
 - Bad, because the ergonomics cost a little boilerplate.
 
+## Quantified Trade-offs
+
+| Attribute | Inline `if` | Rule engine | **Specification Pattern** (chosen) |
+|---|---|---|---|
+| Lines to add a new dispensing rule | ~15 (handler edit) | ~10 (rule file) | ~25 (new class) |
+| Unit-testable in isolation | No | Partially | Yes — pure function, no I/O |
+| Composable with `&` / `\|` / `~` | No | Depends on grammar | Yes — operator overloads in base class |
+| UI can display *which rule* failed | No — single boolean | Depends | Yes — `reasons_for_failure()` |
+| External dependency | None | Rule engine package | None |
+| Evaluation strategy | Eager (short-circuit varies) | Engine-specific | Eager by default; lazy via `LazyAnd` |
+
+**Key win**: the `reasons_for_failure()` output feeds directly into the
+`pharmacy.dispensing.rejected.v1` event payload and the Angular rejection
+panel — a UX improvement that inline `if` cannot provide without significant
+refactoring.
+
+## Why not the alternatives?
+
+**Inline `if`**: the dispensing decision has 3 composable rules today. The
+business domain (*patient consent*, *stock check*, *interaction check*) makes
+it clear that a 4th rule (e.g., allergy) will be added without modifying the
+handler — which is exactly the Open/Closed Principle the Specification pattern
+enforces. The first time a new pharmacist asks "why was this rejected?", inline
+`if` produces `False` with no explanation.
+
+**Rule engine (durable-rules, Drools-style)**: the rule grammar is a DSL
+outside Python's type system. Mistyped attribute names silently produce wrong
+evaluations at runtime. The marketing value ("configurable at runtime") is not
+needed — our rules change quarterly at most and require a code review anyway.
+The 50-line Specification base class in the Shared Kernel achieves the same
+composability inside the type system with zero new dependencies.
+
 ## Links
 - Evans 2003, *DDD*, ch. 9 "Making Implicit Concepts Explicit".
 - Fowler, "Specifications" — <https://www.martinfowler.com/apsupp/spec.pdf>.

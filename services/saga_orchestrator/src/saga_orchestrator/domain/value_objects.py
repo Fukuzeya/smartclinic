@@ -23,7 +23,6 @@ class SagaStep(StrEnum):
 
         AWAITING_ENCOUNTER
             → ENCOUNTER_OPEN          (doctor starts consultation)
-            → AWAITING_LAB            (any lab order placed during encounter)
         ENCOUNTER_OPEN
             → AWAITING_LAB            (lab order placed)
             → AWAITING_PAYMENT        (encounter closed, no pending labs)
@@ -32,12 +31,18 @@ class SagaStep(StrEnum):
         AWAITING_PAYMENT
             → COMPLETED               (invoice paid in full)
 
+        Compensation branch (OOS):
+        ENCOUNTER_OPEN / AWAITING_LAB / AWAITING_PAYMENT
+            → SUBSTITUTION_REQUIRED   (pharmacy dispensing blocked — OOS)
+            → ENCOUNTER_OPEN          (doctor issues substitute prescription)
+
         (any non-terminal) → CANCELLED
     """
 
     AWAITING_ENCOUNTER = "awaiting_encounter"
     ENCOUNTER_OPEN = "encounter_open"
     AWAITING_LAB = "awaiting_lab"
+    SUBSTITUTION_REQUIRED = "substitution_required"
     AWAITING_PAYMENT = "awaiting_payment"
     COMPLETED = "completed"
     CANCELLED = "cancelled"
@@ -65,6 +70,9 @@ class SagaContext(ValueObject):
     lab_orders_completed: list[str] = Field(default_factory=list)
     # Whether the clinical encounter has been formally closed
     encounter_closed: bool = False
+    # Compensation: OOS substitution tracking
+    blocked_prescription_id: str | None = None
+    out_of_stock_drugs: list[str] = Field(default_factory=list)
 
     @property
     def all_labs_completed(self) -> bool:

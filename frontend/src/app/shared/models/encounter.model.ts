@@ -1,4 +1,4 @@
-export type ClinicalStatus = 'open' | 'closed' | 'cancelled';
+export type ClinicalStatus = 'in_progress' | 'closed' | 'voided';
 
 export interface VitalSigns {
   temperature_c?: number;
@@ -49,16 +49,17 @@ export interface Encounter {
 
 export interface StartEncounterRequest {
   patient_id: string;
+  doctor_id: string;
   appointment_id?: string;
 }
 
 export interface RecordVitalsRequest {
-  temperature_c?: number;
+  temperature_celsius?: number;
   pulse_bpm?: number;
-  respiratory_rate?: number;
-  systolic_bp?: number;
-  diastolic_bp?: number;
-  oxygen_saturation?: number;
+  respiratory_rate_rpm?: number;
+  systolic_bp_mmhg?: number;
+  diastolic_bp_mmhg?: number;
+  oxygen_saturation_pct?: number;
   weight_kg?: number;
   height_cm?: number;
 }

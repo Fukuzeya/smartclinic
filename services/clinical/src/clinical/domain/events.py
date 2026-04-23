@@ -137,6 +137,7 @@ class PrescriptionIssuedV1(ClinicalEvent):
         encounter_id: uuid.UUID,
         aggregate_version: int,
         prescription_id: uuid.UUID,
+        patient_id: str,
         lines_payload: list[dict[str, Any]],
         issued_by: str,
         trace_id: str | None = None,
@@ -149,6 +150,8 @@ class PrescriptionIssuedV1(ClinicalEvent):
             correlation_id=correlation_id,
             payload={
                 "prescription_id": str(prescription_id),
+                "patient_id": patient_id,
+                "encounter_id": str(encounter_id),
                 "lines": lines_payload,
                 "issued_by": issued_by,
             },
@@ -165,6 +168,7 @@ class LabOrderPlacedV1(ClinicalEvent):
         encounter_id: uuid.UUID,
         aggregate_version: int,
         lab_order_id: uuid.UUID,
+        patient_id: str,
         tests_payload: list[dict[str, Any]],
         ordered_by: str,
         trace_id: str | None = None,
@@ -177,6 +181,8 @@ class LabOrderPlacedV1(ClinicalEvent):
             correlation_id=correlation_id,
             payload={
                 "lab_order_id": str(lab_order_id),
+                "patient_id": patient_id,
+                "encounter_id": str(encounter_id),
                 "tests": tests_payload,
                 "ordered_by": ordered_by,
             },

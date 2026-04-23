@@ -3,7 +3,10 @@
     "allow": [
       "Bash(python -c ' *)",
       "Bash(docker compose *)",
-      "Bash(python -c \"import sys,json; logs=json.load\\(sys.stdin\\); [print\\(l['Output'][:300]\\) for l in logs[-3:]]\")"
+      "Bash(python -c \"import sys,json; logs=json.load\\(sys.stdin\\); [print\\(l['Output'][:300]\\) for l in logs[-3:]]\")",
+      "Bash(grep -E \"^  [a-z_]+:$\" \"c:/Users/hp/Desktop/UZ Masters Resources/SmartClinic/docker-compose.yml\")",
+      "Bash(python -m json.tool)",
+      "Bash(docker exec *)"
     ]
   }
 }

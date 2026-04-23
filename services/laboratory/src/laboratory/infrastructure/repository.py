@@ -25,29 +25,31 @@ class SqlAlchemyLabOrderRepository:
 
     async def get(self, order_id: LabOrderId) -> LabOrder:
         row = (await self._session.execute(
-            select(LabOrderRow).where(LabOrderRow.order_id == uuid.UUID(str(order_id)))
+            select(LabOrderRow).where(LabOrderRow.order_id == order_id.value)
         )).scalar_one_or_none()
         if row is None:
             raise NotFound(f"Lab order {order_id} not found")
         return _row_to_aggregate(row)
 
     async def add(self, order: LabOrder) -> None:
+        # Pre-compute post-commit version — UoW bumps after flush.
+        final_version = order.version + len(order.peek_domain_events())
         row = LabOrderRow(
-            order_id=uuid.UUID(str(order.id)),
+            order_id=order.id.value,
             patient_id=order.patient_id,
             encounter_id=order.encounter_id,
             ordered_by="",
             lines=[ln.model_dump(mode="json") for ln in order.lines],
             results=[],
             status=order.status.value,
-            version=0,
+            version=final_version,
         )
         self._session.add(row)
         await self._session.flush()
 
     async def save(self, order: LabOrder) -> None:
         row = (await self._session.execute(
-            select(LabOrderRow).where(LabOrderRow.order_id == uuid.UUID(str(order.id)))
+            select(LabOrderRow).where(LabOrderRow.order_id == order.id.value)
         )).scalar_one_or_none()
         if row is None:
             raise NotFound(f"Lab order {order.id} not found for save")

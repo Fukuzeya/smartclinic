@@ -23,3 +23,10 @@ class GetAppointmentsForPatient(Query):
 class GetAppointmentsForDoctorOnDate(Query):
     doctor_id: uuid.UUID
     on_date: date
+
+
+class GetAllAppointments(Query):
+    on_date: date | None = None
+    status: str | None = None
+    limit: int = Field(default=50, ge=1, le=100)
+    offset: int = Field(default=0, ge=0)

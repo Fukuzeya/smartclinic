@@ -176,6 +176,53 @@ cases; `SELECT … FOR UPDATE` on latest event during writes.
 
 ---
 
+---
+
+## QAS-11 — AI Copilot non-repudiation (ADR-0013)
+
+| Part            | Value                                                                                                                           |
+|-----------------|---------------------------------------------------------------------------------------------------------------------------------|
+| **Source**      | Compliance auditor querying whether AI was used in clinical decision-making.                                                     |
+| **Stimulus**    | Request for all AI interactions involving encounter E.                                                                          |
+| **Artifact**    | `ai_suggestions` table in the Clinical database.                                                                                |
+| **Environment** | Any time post-encounter.                                                                                                        |
+| **Response**    | Query returns all suggestions: model used, timestamp, text, and clinician decision (accepted/discarded with `decided_by` and `decided_at`). |
+| **Measure**     | 100% of AI suggestions auditable; zero AI suggestions appear in `clinical_events`.                                              |
+
+**Tactics.** Provider Port (ADR-0013); separate `ai_suggestions` table; `RecordAIDecisionCommand` gate; disclaimer banner in UI.
+
+---
+
+## Quantified SLO targets
+
+These are the targets against which the architecture is designed. They are not
+SLAs — no external commitment is made — but they guide capacity and trade-off
+decisions.
+
+| Scenario | Metric | Target | Budget allocation |
+|---|---|---|---|
+| QAS-4: prescription → dispensing | p95 end-to-end latency | ≤ 2 000 ms | Clinical write ≤ 200ms; outbox poll ≤ 250ms; RabbitMQ + Pharmacy consumer ≤ 1 500ms |
+| QAS-1: chain verification | p95 verify_chain latency (≤ 50 events) | ≤ 80 ms | SHA-256 over 50 × 512-byte payloads ≈ 2ms; DB read ≤ 70ms |
+| QAS-8: token validation | p99 auth middleware overhead | ≤ 2 ms | JWKS cached; no network call on hot path |
+| QAS-2: pharmacy during Clinical outage | Pharmacy availability | ≥ 99.5% | Async only; RabbitMQ HA queue |
+| QAS-3: outbox during broker outage | Event loss | 0 events | Transactional outbox + idempotent consumers |
+| QAS-11: AI suggestion response | p95 AI endpoint latency | ≤ 3 000 ms | Anthropic Haiku p95 ≈ 1 500ms; DB write ≤ 100ms; overhead ≤ 400ms |
+
+## RTO / RPO targets
+
+| Failure scenario | RTO (Recovery Time) | RPO (Recovery Point) | Mechanism |
+|---|---|---|---|
+| Single service crash | < 30 s | 0 (no state in-process) | Docker healthcheck restart; outbox re-drains |
+| Postgres crash | < 2 min | 0 (WAL; committed transactions preserved) | Docker volume; pg_wal retained 5 min |
+| RabbitMQ crash | < 1 min | 0 (durable queues + outbox) | Docker restart; outbox relay re-publishes unacknowledged rows |
+| Keycloak crash | < 30 s | 0 (realm in Postgres) | Docker healthcheck; active JWTs still valid for remaining TTL |
+| Full stack restart | < 3 min | 0 | `make up`; DB volumes persisted |
+
+**Note**: RPO = 0 for committed transactions is achievable only because every
+domain state change is a database write (either to the event store or to CRUD
+tables) before any event is published. In-flight in-memory state has never been
+the source of truth.
+
 ## Where tactics meet code
 
 | Tactic                                   | Code                                                                                                                  |

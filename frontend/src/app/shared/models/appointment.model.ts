@@ -32,3 +32,15 @@ export interface AppointmentListResponse {
   limit: number;
   offset: number;
 }
+
+export interface DoctorSummary {
+  doctor_id: string;
+  display_name: string;
+  username: string;
+  email?: string;
+}
+
+export interface DoctorListResponse {
+  items: DoctorSummary[];
+  total: number;
+}

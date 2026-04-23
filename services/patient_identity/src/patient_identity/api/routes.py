@@ -26,11 +26,13 @@ import uuid
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import func, select as sa_select
 
 from shared_kernel.fastapi.dependencies import require_any_role, require_role
 from shared_kernel.infrastructure.security import Principal
 from shared_kernel.infrastructure.sqlalchemy_uow import SqlAlchemyUnitOfWork
 
+from patient_identity.infrastructure.orm import PatientRow
 from patient_identity.application.commands import (
     GrantConsent,
     RegisterPatient,
@@ -115,11 +117,11 @@ async def register_patient(
     summary="Search patients by family name",
 )
 async def search_patients(
-    name_fragment: str,
     request: Request,
     principal: Annotated[
-        Principal, Depends(require_any_role("receptionist", "doctor"))
+        Principal, Depends(require_any_role("receptionist", "doctor", "lab_technician", "pharmacist", "accounts"))
     ],
+    name_fragment: str = "",
     limit: int = 20,
     offset: int = 0,
 ) -> PatientListResponse:
@@ -134,9 +136,15 @@ async def search_patients(
                 offset=offset,
             )
         )
+        count_stmt = (
+            sa_select(func.count())
+            .select_from(PatientRow)
+            .where(PatientRow.family_name.ilike(f"%{name_fragment}%"))
+        )
+        total: int = (await session.execute(count_stmt)).scalar_one()
     return PatientListResponse(
         items=[PatientSummaryResponse.from_domain(p) for p in patients],
-        total=len(patients),
+        total=total,
         limit=limit,
         offset=offset,
     )
@@ -151,7 +159,7 @@ async def get_patient(
     patient_id: uuid.UUID,
     request: Request,
     principal: Annotated[
-        Principal, Depends(require_any_role("receptionist", "doctor"))
+        Principal, Depends(require_any_role("receptionist", "doctor", "lab_technician", "pharmacist", "accounts"))
     ],
 ) -> PatientResponse:
     async with _get_session(request) as session:

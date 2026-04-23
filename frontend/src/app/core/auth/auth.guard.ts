@@ -21,10 +21,10 @@ export const authGuard: CanActivateFn = () => {
 };
 
 /**
- * Factory that creates a guard allowing only users with the given role.
- * Usage in routes: canActivate: [roleGuard('doctor')]
+ * Factory that creates a guard allowing only users with at least one of the given roles.
+ * Usage in routes: canActivate: [roleGuard('doctor', 'receptionist')]
  */
-export function roleGuard(role: string): CanActivateFn {
+export function roleGuard(...roles: string[]): CanActivateFn {
   return () => {
     const auth = inject(AuthService);
     const router = inject(Router);
@@ -33,7 +33,7 @@ export function roleGuard(role: string): CanActivateFn {
       auth.logout();
       return false;
     }
-    if (auth.hasRole(role)) {
+    if (roles.some(role => auth.hasRole(role))) {
       return true;
     }
     return router.createUrlTree(['/forbidden']);

@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { roleGuard } from '../../core/auth/auth.guard';
 
 export const ENCOUNTER_ROUTES: Routes = [
   {
@@ -8,6 +9,7 @@ export const ENCOUNTER_ROUTES: Routes = [
   },
   {
     path: 'new',
+    canActivate: [roleGuard('doctor')],
     loadComponent: () =>
       import('./encounter-start.component').then(m => m.EncounterStartComponent),
   },

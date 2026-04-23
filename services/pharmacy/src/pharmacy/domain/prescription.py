@@ -76,7 +76,7 @@ class Prescription(AggregateRoot[PrescriptionId]):
         instance._dispensed_at = None
 
         event = PrescriptionReceivedV1.build(
-            prescription_id=uuid.UUID(str(prescription_id)),
+            prescription_id=prescription_id.value,
             aggregate_version=instance._next_version(),
             patient_id=patient_id,
             encounter_id=encounter_id,
@@ -120,7 +120,7 @@ class Prescription(AggregateRoot[PrescriptionId]):
         self._status = DispensingStatus.DISPENSED
         self._dispensed_at = datetime.now(UTC)
         self._record(DispensingCompletedV1.build(
-            prescription_id=uuid.UUID(str(self.id)),
+            prescription_id=self.id.value,
             aggregate_version=self._next_version(),
             patient_id=self._patient_id,
             dispensed_by=dispensed_by,
@@ -142,7 +142,7 @@ class Prescription(AggregateRoot[PrescriptionId]):
             raise InvariantViolation("No matching drug lines found for partial dispense")
         self._status = DispensingStatus.PARTIAL
         self._record(DispensingPartialV1.build(
-            prescription_id=uuid.UUID(str(self.id)),
+            prescription_id=self.id.value,
             aggregate_version=self._next_version(),
             patient_id=self._patient_id,
             dispensed_lines=[ln.model_dump(mode="json") for ln in dispensed],
@@ -150,16 +150,29 @@ class Prescription(AggregateRoot[PrescriptionId]):
             dispensed_by=dispensed_by,
         ))
 
-    def reject(self, *, reasons: list[str], rejected_by: str) -> None:
-        """Block dispensing due to specification failure."""
+    def reject(
+        self,
+        *,
+        reasons: list[str],
+        rejected_by: str,
+        out_of_stock_drugs: list[str] | None = None,
+    ) -> None:
+        """Block dispensing due to specification failure.
+
+        Pass ``out_of_stock_drugs`` when the rejection is specifically caused by
+        stock unavailability so the Saga Orchestrator can trigger the
+        substitution-required compensation branch.
+        """
         self._assert_actionable()
         self._status = DispensingStatus.REJECTED
         self._record(DispensingRejectedV1.build(
-            prescription_id=uuid.UUID(str(self.id)),
+            prescription_id=self.id.value,
             aggregate_version=self._next_version(),
             patient_id=self._patient_id,
+            encounter_id=self._encounter_id,
             reasons=reasons,
             rejected_by=rejected_by,
+            out_of_stock_drugs=out_of_stock_drugs or [],
         ))
 
     def cancel(self) -> None:

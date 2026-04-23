@@ -64,7 +64,7 @@ async def handle_encounter_closed(
         ))
 
         row = InvoiceRow(
-            invoice_id=uuid.UUID(str(invoice_id)),
+            invoice_id=invoice_id.value,
             patient_id=patient_id,
             encounter_id=encounter_id,
             currency=Currency.USD.value,

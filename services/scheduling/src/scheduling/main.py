@@ -18,7 +18,7 @@ from shared_kernel.infrastructure.logging import get_logger
 from shared_kernel.infrastructure.outbox import OutboxRelay, RelayConfig
 from shared_kernel.infrastructure.sqlalchemy_uow import SqlAlchemyUnitOfWork
 
-from scheduling.api.routes import router
+from scheduling.api.routes import router, staff_router
 from scheduling.infrastructure.orm import AppointmentRow, PatientReadModelRow  # noqa: F401
 from scheduling.infrastructure.patient_projection import (
     handle_patient_demographics_updated,
@@ -42,6 +42,7 @@ async def _startup_hook(app: FastAPI) -> Callable[[], Awaitable[None]]:
 
     app.state.session_factory = session_factory
     app.state.uow_factory = lambda: SqlAlchemyUnitOfWork(session_factory)
+    app.state.settings = settings
 
     publisher = RabbitMQPublisher(url=settings.rabbitmq_url)
     await publisher.connect()
@@ -107,7 +108,7 @@ def _make_patient_event_handler(session_factory):
 
 app: FastAPI = create_app(
     settings=settings,
-    routers=(router,),
+    routers=(router, staff_router),
     lifespan_hooks=(_startup_hook,),
     title="Scheduling",
     version="0.1.0",

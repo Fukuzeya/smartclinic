@@ -78,6 +78,14 @@
     },
 
     {
+      "name": "scheduling.patient.events",
+      "vhost": "/",
+      "durable": true,
+      "auto_delete": false,
+      "arguments": { "x-dead-letter-exchange": "smartclinic.events.dlx", "x-queue-type": "classic" }
+    },
+
+    {
       "name": "clinical.events",
       "vhost": "/",
       "durable": true,
@@ -137,6 +145,7 @@
     { "source": "smartclinic.events", "vhost": "/", "destination": "patient_identity.events",        "destination_type": "queue", "routing_key": "patient.#",                                     "arguments": {} },
 
     { "source": "smartclinic.events", "vhost": "/", "destination": "scheduling.events",              "destination_type": "queue", "routing_key": "scheduling.#",                                  "arguments": {} },
+    { "source": "smartclinic.events", "vhost": "/", "destination": "scheduling.patient.events",       "destination_type": "queue", "routing_key": "patient.#",                                     "arguments": {} },
 
     { "source": "smartclinic.events", "vhost": "/", "destination": "clinical.events",                "destination_type": "queue", "routing_key": "clinical.#",                                    "arguments": {} },
 

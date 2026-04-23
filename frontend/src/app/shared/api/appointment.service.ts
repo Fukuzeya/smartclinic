@@ -6,6 +6,7 @@ import {
   Appointment,
   AppointmentListResponse,
   BookAppointmentRequest,
+  DoctorListResponse,
 } from '../models/appointment.model';
 
 @Injectable({ providedIn: 'root' })
@@ -79,7 +80,7 @@ export class AppointmentService {
     patientId?: string,
     onDate?: string,
     status?: string,
-    limit = 20,
+    limit = 50,
     offset = 0
   ): Observable<AppointmentListResponse> {
     let params = new HttpParams().set('limit', limit).set('offset', offset);
@@ -87,5 +88,10 @@ export class AppointmentService {
     if (onDate) params = params.set('on_date', onDate);
     if (status) params = params.set('status', status);
     return this.http.get<AppointmentListResponse>(`${this.base}/appointments`, { params });
+  }
+
+  searchDoctors(q: string): Observable<DoctorListResponse> {
+    const params = new HttpParams().set('q', q);
+    return this.http.get<DoctorListResponse>(`${this.base}/staff/doctors`, { params });
   }
 }

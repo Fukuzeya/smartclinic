@@ -15,27 +15,36 @@ import { AuthService } from '../../core/auth/auth.service';
   imports: [RouterLink, FormsModule],
   template: `
     <div class="page-header">
-      <h1>Patients</h1>
+      <div>
+        <h1 class="page-title">Patients</h1>
+        <p class="page-subtitle">Search and manage patient records</p>
+      </div>
       @if (auth.isReceptionist()) {
-        <a routerLink="new" class="btn btn-primary">+ Register patient</a>
+        <a routerLink="new" class="btn-primary">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Register Patient
+        </a>
       }
     </div>
 
     <div class="card">
       <div class="search-bar">
-        <input
-          type="search"
-          placeholder="Search by name…"
-          [(ngModel)]="searchTerm"
-          (ngModelChange)="onSearch($event)"
-          class="search-input"
-        />
+        <div class="search-field-wrap">
+          <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input
+            type="search"
+            placeholder="Search patients by name…"
+            [(ngModel)]="searchTerm"
+            (ngModelChange)="onSearch($event)"
+            class="form-control search-input"
+          />
+        </div>
       </div>
 
       @if (loading()) {
-        <div class="loading-spinner">Loading…</div>
+        <div class="loading">Loading…</div>
       } @else if (error()) {
-        <div class="alert alert-error">{{ error() }}</div>
+        <div class="alert-error">{{ error() }}</div>
       } @else if (patients().length === 0) {
         <div class="empty-state">
           <strong>No patients found</strong>
@@ -63,7 +72,7 @@ import { AuthService } from '../../core/auth/auth.service';
                   @if (p.has_phone) { <span title="Phone">📞</span> }
                 </td>
                 <td>
-                  <a [routerLink]="p.patient_id" class="btn btn-secondary btn-sm">View</a>
+                  <a [routerLink]="p.patient_id" class="btn-secondary btn-sm">View</a>
                 </td>
               </tr>
             }
@@ -72,11 +81,11 @@ import { AuthService } from '../../core/auth/auth.service';
 
         @if (total() > limit) {
           <div class="pagination">
-            <button class="btn btn-secondary btn-sm"
+            <button class="btn-secondary btn-sm"
                     [disabled]="offset() === 0"
                     (click)="prevPage()">← Prev</button>
             <span class="page-info">{{ pageLabel() }}</span>
-            <button class="btn btn-secondary btn-sm"
+            <button class="btn-secondary btn-sm"
                     [disabled]="offset() + limit >= total()"
                     (click)="nextPage()">Next →</button>
           </div>
@@ -85,25 +94,12 @@ import { AuthService } from '../../core/auth/auth.service';
     </div>
   `,
   styles: [`
-    .search-bar { margin-bottom: 16px; }
-    .search-input {
-      width: 100%;
-      max-width: 400px;
-      padding: 9px 12px;
-      border: 1px solid #d1d5db;
-      border-radius: 8px;
-      font-size: 0.9rem;
-      outline: none;
-      &:focus { border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
-    }
-    .pagination {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-      margin-top: 16px;
-      justify-content: flex-end;
-    }
-    .page-info { font-size: 0.85rem; color: #64748b; }
+    .search-bar { margin-bottom: 20px; }
+    .search-field-wrap { position: relative; max-width: 400px; }
+    .search-icon { position: absolute; left: 11px; top: 50%; transform: translateY(-50%); color: var(--clr-gray-400); pointer-events: none; }
+    .search-input { padding-left: 36px !important; }
+    .pagination { display: flex; align-items: center; gap: 12px; margin-top: 16px; justify-content: flex-end; }
+    .page-info { font-size: .825rem; color: var(--clr-gray-500); }
   `],
 })
 export class PatientListComponent implements OnInit {

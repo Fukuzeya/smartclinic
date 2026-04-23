@@ -37,7 +37,7 @@ async def handle_lab_order_placed(
             ordered_by=payload.get("ordered_by", ""),
         )
         row = LabOrderRow(
-            order_id=uuid.UUID(str(order.id)),
+            order_id=order.id.value,
             patient_id=order.patient_id,
             encounter_id=order.encounter_id,
             ordered_by=payload.get("ordered_by", ""),
