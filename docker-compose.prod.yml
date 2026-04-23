@@ -116,7 +116,10 @@ services:
   # otel-collector stays always-on (not in obs profile) because every app
   # service has depends_on: otel-collector. ~50MB footprint is negligible.
   # When the obs profile is off, spans/metrics are buffered then dropped.
+  # We reset depends_on because jaeger/loki/prometheus live behind the obs
+  # profile and may not exist.
   otel-collector:
+    depends_on: !reset {}
     ports: !reset []
     <<: *app-common
 
