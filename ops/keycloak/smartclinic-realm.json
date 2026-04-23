@@ -94,11 +94,13 @@
       "secret": "smartclinic-api-secret",
       "redirectUris": [
         "http://localhost:4200/*",
-        "http://localhost:8080/*"
+        "http://localhost:8080/*",
+        "http://172.236.3.27/*"
       ],
       "webOrigins": [
         "http://localhost:4200",
-        "http://localhost:8080"
+        "http://localhost:8080",
+        "http://172.236.3.27"
       ],
       "attributes": {
         "access.token.lifespan": "900",
@@ -147,10 +149,12 @@
       "directAccessGrantsEnabled": false,
       "serviceAccountsEnabled": false,
       "redirectUris": [
-        "http://localhost:4200/*"
+        "http://localhost:4200/*",
+        "http://172.236.3.27/*"
       ],
       "webOrigins": [
         "http://localhost:4200",
+        "http://172.236.3.27",
         "+"
       ],
       "attributes": {

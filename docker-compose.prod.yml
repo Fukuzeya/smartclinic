@@ -87,6 +87,10 @@ services:
       KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_HTTP_ENABLED: "true"
       KC_PROXY: edge
+      # Caddy strips /auth and forwards to keycloak:8080, so Keycloak
+      # must know its public base path is /auth (otherwise every redirect
+      # it generates drops the prefix and Caddy cannot route it back).
+      KC_HTTP_RELATIVE_PATH: /auth
       KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN_USER}
       KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD}
     deploy:
@@ -174,8 +178,8 @@ services:
     ports: !reset []
     <<: *app-common
 
-  seeder:
-    profiles: ["disabled"]
+  # seeder inherits profiles: [seed] from the base compose file; run it in
+  # prod with: docker compose ... --profile seed run --rm seeder
 
 volumes:
   caddy-data:
