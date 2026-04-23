@@ -102,7 +102,7 @@ jobs:
         run: |
           echo "sha=${{ github.event.inputs.image_tag || github.sha }}" >> "$GITHUB_OUTPUT"
 
-      - name: SSH · pull images, run migrations, rolling restart
+      - name: SSH - pull images, run migrations, rolling restart
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -114,7 +114,8 @@ jobs:
           script: |
             set -euo pipefail
             export IMAGE_TAG="${{ steps.tag.outputs.sha }}"
-            export IMAGE_OWNER="${{ env.IMAGE_OWNER }}"
+            # GHCR image names must be lowercase; github.repository_owner may be mixed-case.
+            export IMAGE_OWNER="$(echo '${{ env.IMAGE_OWNER }}' | tr '[:upper:]' '[:lower:]')"
             export REGISTRY="${{ env.REGISTRY }}"
             cd /opt/smartclinic
             # Non-destructive pull of latest deploy/compose files
