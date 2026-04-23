@@ -121,7 +121,7 @@ jobs:
             git fetch --all --prune
             git reset --hard origin/main
             # Hand off to the server-side deploy script
-            ./ops/deploy/deploy.sh
+            bash ./ops/deploy/deploy.sh
 
       - name: Smoke-test the public endpoint
         run: |
