@@ -93,6 +93,11 @@ ClientAliveCountMax 2
 AllowUsers root $APP_USER
 EOF
 
+# sshd -t needs the privilege-separation dir; on fresh Ubuntu 24.04 with
+# socket-activated ssh, /run/sshd may not exist yet.
+install -d -m 0755 /run/sshd
+systemd-tmpfiles --create /usr/lib/tmpfiles.d/sshd.conf 2>/dev/null || true
+
 # Validate config before applying - never risk locking ourselves out.
 if ! sshd -t; then
   warn "sshd config test failed; removing $SSHD"

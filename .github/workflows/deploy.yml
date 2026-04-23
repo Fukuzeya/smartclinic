@@ -96,7 +96,6 @@ jobs:
     needs: build-push
     environment:
       name: production
-      url: http://${{ secrets.DEPLOY_HOST }}
     steps:
       - name: Resolve image tag
         id: tag
