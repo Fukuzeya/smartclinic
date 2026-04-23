@@ -26,10 +26,12 @@ x-app-common: &app-common
   restart: unless-stopped
   logging: *default-logging
 
-# In prod Keycloak runs with KC_HTTP_RELATIVE_PATH=/auth, so every internal
-# URL must include the /auth prefix.  The public issuer uses the Caddy path.
+# In prod Keycloak runs with KC_HTTP_RELATIVE_PATH=/auth in start-dev mode.
+# start-dev uses the request hostname as issuer, so internal callers get
+# iss=http://keycloak:8080/auth/realms/smartclinic. The OIDC_ISSUER must
+# match that exactly, and the browser-facing issuer is handled by Caddy.
 x-oidc-prod: &oidc-prod
-  OIDC_ISSUER: http://${DEPLOY_HOST}/auth/realms/smartclinic
+  OIDC_ISSUER: http://keycloak:8080/auth/realms/smartclinic
   OIDC_JWKS_URL: http://keycloak:8080/auth/realms/smartclinic/protocol/openid-connect/certs
 
 services:
@@ -82,21 +84,14 @@ services:
   keycloak:
     ports: !reset []
     <<: *app-common
-    # Override command: start-dev ignores KC_HOSTNAME* env vars for the
-    # issuer, so we pass --hostname as a CLI flag which IS respected.
-    command:
-      - "start-dev"
-      - "--import-realm"
-      - "--health-enabled=true"
-      - "--metrics-enabled=true"
-      - "--hostname=http://${DEPLOY_HOST}/auth"
-      - "--hostname-strict=true"
-      - "--hostname-strict-https=false"
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
       KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: keycloak
+      KC_HOSTNAME: ${DEPLOY_HOST}
+      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_HTTP_ENABLED: "true"
       KC_PROXY: edge
       KC_HTTP_RELATIVE_PATH: /auth
