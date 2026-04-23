@@ -1,8 +1,8 @@
-# SmartClinic — Caddy reverse proxy (HTTP-only, IP-hosted).
+# SmartClinic - Caddy reverse proxy (HTTP-only, IP-hosted).
 #
 # NOTE: this configuration serves plain HTTP on port 80 only. It is
 # appropriate for the academic demo on http://172.236.3.27. Do not use
-# this config for real patient data — OIDC tokens and PII would travel
+# this config for real patient data - OIDC tokens and PII would travel
 # unencrypted. Switch to the HTTPS variant (auto-TLS with Let's Encrypt)
 # the moment you attach a domain.
 #
@@ -17,7 +17,7 @@
     }
 }
 
-# Bind to port 80 for any request — IP or host header is fine.
+# Bind to port 80 for any request - IP or host header is fine.
 :80 {
     encode zstd gzip
 
@@ -45,20 +45,42 @@
     }
 
     # Bounded-context APIs.
-    handle_path /api/patients/*      { reverse_proxy patient_identity:8000 }
-    handle_path /api/appointments/*  { reverse_proxy scheduling:8000 }
-    handle_path /api/encounters/*    { reverse_proxy clinical:8000 }
-    handle_path /api/prescriptions/* { reverse_proxy pharmacy:8000 }
-    handle_path /api/lab/*           { reverse_proxy laboratory:8000 }
-    handle_path /api/invoices/*      { reverse_proxy billing:8000 }
-    handle_path /api/saga/*          { reverse_proxy saga_orchestrator:8000 }
+    handle_path /api/patients/* {
+        reverse_proxy patient_identity:8000
+    }
+    handle_path /api/appointments/* {
+        reverse_proxy scheduling:8000
+    }
+    handle_path /api/encounters/* {
+        reverse_proxy clinical:8000
+    }
+    handle_path /api/prescriptions/* {
+        reverse_proxy pharmacy:8000
+    }
+    handle_path /api/lab/* {
+        reverse_proxy laboratory:8000
+    }
+    handle_path /api/invoices/* {
+        reverse_proxy billing:8000
+    }
+    handle_path /api/saga/* {
+        reverse_proxy saga_orchestrator:8000
+    }
 
-    # Optional: observability dashboards (only up when --profile obs).
+    # Observability dashboards. For the academic demo these are open; to
+    # lock them down, generate a bcrypt hash and wrap the reverse_proxy
+    # in a basicauth block:
+    #     basicauth {
+    #         ops <BCRYPT_HASH>
+    #     }
     handle_path /grafana/* {
-        basicauth {
-            {$GRAFANA_BASICAUTH_USER} {$GRAFANA_BASICAUTH_HASH}
-        }
         reverse_proxy grafana:3000
+    }
+    handle_path /jaeger/* {
+        reverse_proxy jaeger:16686
+    }
+    handle_path /prometheus/* {
+        reverse_proxy prometheus:9090
     }
 
     # Angular SPA + client-side routing fallback (default handler).
