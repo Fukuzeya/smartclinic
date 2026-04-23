@@ -26,6 +26,12 @@ x-app-common: &app-common
   restart: unless-stopped
   logging: *default-logging
 
+# In prod Keycloak runs with KC_HTTP_RELATIVE_PATH=/auth, so every internal
+# URL must include the /auth prefix.  The public issuer uses the Caddy path.
+x-oidc-prod: &oidc-prod
+  OIDC_ISSUER: http://${DEPLOY_HOST}/auth/realms/smartclinic
+  OIDC_JWKS_URL: http://keycloak:8080/auth/realms/smartclinic/protocol/openid-connect/certs
+
 services:
   # ── Reverse proxy (plain HTTP — IP-hosted demo) ────────────────────────
   caddy:
@@ -137,42 +143,57 @@ services:
     build: !reset null
     image: ${REGISTRY:-ghcr.io}/${IMAGE_OWNER}/smartclinic-patient_identity:${IMAGE_TAG:-latest}
     ports: !reset []
+    environment:
+      <<: *oidc-prod
     <<: *app-common
 
   scheduling:
     build: !reset null
     image: ${REGISTRY:-ghcr.io}/${IMAGE_OWNER}/smartclinic-scheduling:${IMAGE_TAG:-latest}
     ports: !reset []
+    environment:
+      <<: *oidc-prod
+      KEYCLOAK_BASE_URL: http://keycloak:8080/auth
     <<: *app-common
 
   clinical:
     build: !reset null
     image: ${REGISTRY:-ghcr.io}/${IMAGE_OWNER}/smartclinic-clinical:${IMAGE_TAG:-latest}
     ports: !reset []
+    environment:
+      <<: *oidc-prod
     <<: *app-common
 
   pharmacy:
     build: !reset null
     image: ${REGISTRY:-ghcr.io}/${IMAGE_OWNER}/smartclinic-pharmacy:${IMAGE_TAG:-latest}
     ports: !reset []
+    environment:
+      <<: *oidc-prod
     <<: *app-common
 
   laboratory:
     build: !reset null
     image: ${REGISTRY:-ghcr.io}/${IMAGE_OWNER}/smartclinic-laboratory:${IMAGE_TAG:-latest}
     ports: !reset []
+    environment:
+      <<: *oidc-prod
     <<: *app-common
 
   billing:
     build: !reset null
     image: ${REGISTRY:-ghcr.io}/${IMAGE_OWNER}/smartclinic-billing:${IMAGE_TAG:-latest}
     ports: !reset []
+    environment:
+      <<: *oidc-prod
     <<: *app-common
 
   saga_orchestrator:
     build: !reset null
     image: ${REGISTRY:-ghcr.io}/${IMAGE_OWNER}/smartclinic-saga_orchestrator:${IMAGE_TAG:-latest}
     ports: !reset []
+    environment:
+      <<: *oidc-prod
     <<: *app-common
 
   frontend:
