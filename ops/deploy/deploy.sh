@@ -16,9 +16,11 @@ set -euo pipefail
 APP_DIR="${APP_DIR:-/opt/smartclinic}"
 ENV_FILE="${ENV_FILE:-$APP_DIR/.env}"
 COMPOSE_FILES=(-f docker-compose.yml -f docker-compose.prod.yml)
-PROFILES=("--profile" "default")
-# Uncomment to auto-start the observability stack in prod:
-# PROFILES=("--profile" "default" "--profile" "obs")
+# Enable the obs profile so otel-collector + jaeger/loki/prometheus/grafana
+# all come up - the app services have depends_on: otel-collector, so they
+# can't start without it. Set PROFILES="" externally to disable on tiny
+# instances (you will need to also drop the depends_on).
+PROFILES=("--profile" "obs")
 
 cd "$APP_DIR"
 
