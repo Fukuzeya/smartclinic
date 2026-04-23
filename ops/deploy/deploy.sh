@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SmartClinic — server-side deploy script.
+# SmartClinic - server-side deploy script.
 #
 # Pulls the requested image tag from GHCR and performs a rolling restart.
 # Invoked by `.github/workflows/deploy.yml` over SSH, but also safe to run
@@ -23,29 +23,39 @@ PROFILES=("--profile" "default")
 cd "$APP_DIR"
 
 if [[ ! -f "$ENV_FILE" ]]; then
-  echo "Missing $ENV_FILE — did you run bootstrap.sh and fill it in?" >&2
+  echo "Missing $ENV_FILE - did you run bootstrap.sh and fill it in?" >&2
   exit 1
 fi
 
-# Export the env file so docker compose sees IMAGE_OWNER/IMAGE_TAG/etc.
-set -a
-# shellcheck disable=SC1090
-source "$ENV_FILE"
-set +a
+# Do NOT source .env as a shell script - values like bcrypt hashes contain
+# literal '$' characters (e.g. $2a$14$...) that bash would try to expand as
+# positional parameters under 'set -u'. docker compose reads --env-file
+# itself and treats values as literals, so we only need to pull the handful
+# of vars this script references directly.
+read_env() {
+  grep -E "^${1}=" "$ENV_FILE" | head -1 | cut -d= -f2- || true
+}
 
-# CI may pass IMAGE_TAG as env; fall back to latest
+export IMAGE_TAG="${IMAGE_TAG:-$(read_env IMAGE_TAG)}"
 export IMAGE_TAG="${IMAGE_TAG:-latest}"
+export IMAGE_OWNER="${IMAGE_OWNER:-$(read_env IMAGE_OWNER)}"
+export REGISTRY="${REGISTRY:-$(read_env REGISTRY)}"
 export REGISTRY="${REGISTRY:-ghcr.io}"
 
-log() { printf "\n\e[1;34m▸ %s\e[0m\n" "$*"; }
+if [[ -z "${IMAGE_OWNER:-}" ]]; then
+  echo "IMAGE_OWNER is not set and not present in $ENV_FILE" >&2
+  exit 1
+fi
 
-log "Deploying tag: $IMAGE_TAG · owner: $IMAGE_OWNER"
+log() { printf "\n\e[1;34m>> %s\e[0m\n" "$*"; }
+
+log "Deploying tag: $IMAGE_TAG  owner: $IMAGE_OWNER"
 
 # 1. Pre-flight: pull new images so we fail fast if GHCR auth is bad
 log "Pulling images"
 docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" "${PROFILES[@]}" pull
 
-# 2. Bring up / update the stack — compose handles rolling restart
+# 2. Bring up / update the stack - compose handles rolling restart
 log "Restarting services"
 docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" "${PROFILES[@]}" up -d --remove-orphans
 
@@ -83,4 +93,4 @@ docker image prune -f >/dev/null
 # Keep recent tags but purge stale GHCR pulls (>14 days + not in use)
 docker image prune -a --filter "until=336h" -f >/dev/null || true
 
-log "Deploy complete — $(docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" ps --services | wc -l) services up"
+log "Deploy complete - $(docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" ps --services | wc -l) services up"
