@@ -370,10 +370,20 @@ def insert_lab_order(conn, order_id, encounter_id, patient_id, ordered_by, lines
 def insert_invoice(conn, encounter_id, patient_id, lines, status="paid",
                    amount="20.00", method="cash", reference="CASH"):
     inv_id = _uuid()
+    # Convert simple lines [{"description": ..., "amount": ...}] to ChargeLine JSONB
+    charge_lines = []
+    for ln in lines:
+        charge_lines.append({
+            "category": ln.get("category", "consultation"),
+            "description": ln["description"],
+            "unit_price": {"amount": ln["amount"], "currency": "USD"},
+            "quantity": ln.get("quantity", 1),
+            "reference_id": ln.get("reference_id"),
+        })
     payments = []
     if status == "paid":
-        payments = [{"amount": amount, "currency": "USD", "method": method,
-                     "reference": reference, "paid_at": NOW.isoformat()}]
+        payments = [{"amount": {"amount": amount, "currency": "USD"}, "method": method,
+                     "reference": reference, "recorded_by": "seed-script"}]
     cur = conn.cursor()
     cur.execute("""
         INSERT INTO invoices (invoice_id, patient_id, encounter_id, currency,
@@ -382,7 +392,7 @@ def insert_invoice(conn, encounter_id, patient_id, lines, status="paid",
         ON CONFLICT (invoice_id) DO NOTHING
     """, (
         inv_id, patient_id, encounter_id, status,
-        json.dumps(lines), json.dumps(payments), NOW,
+        json.dumps(charge_lines), json.dumps(payments), NOW,
         NOW if status in ("issued", "paid") else None,
         NOW if status == "paid" else None,
     ))
@@ -529,7 +539,7 @@ def main():
     insert_invoice(bill_conn, enc2.enc_id, p2,
                    [{"description": "AF review consultation", "amount": "20.00"}],
                    status="draft")
-    insert_saga(saga_conn, enc2.enc_id, p2, step="pharmacy_pending", status="in_progress")
+    insert_saga(saga_conn, enc2.enc_id, p2, step="substitution_required", status="active")
     print("  → Warfarin NOT in stock — pending dispensing (OOS demo).")
 
     # ═════════════════════════════════════════════════════════
@@ -634,7 +644,7 @@ def main():
     insert_invoice(bill_conn, enc4.enc_id, p4,
                    [{"description": "Hypertension evaluation", "amount": "25.00"}],
                    status="issued", amount="25.00")
-    insert_saga(saga_conn, enc4.enc_id, p4, step="pharmacy_pending", status="in_progress")
+    insert_saga(saga_conn, enc4.enc_id, p4, step="awaiting_payment", status="active")
     print("  → Aspirin + Ibuprofen interaction — pending dispense demo.")
 
     # ═════════════════════════════════════════════════════════
