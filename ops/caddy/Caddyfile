@@ -36,7 +36,9 @@
     }
 
     # Keycloak admin console + OIDC endpoints.
-    handle_path /auth/* {
+    # Use `handle` (not `handle_path`) so the /auth prefix is preserved —
+    # Keycloak expects it because KC_HTTP_RELATIVE_PATH=/auth.
+    handle /auth/* {
         reverse_proxy keycloak:8080 {
             header_up Host              {host}
             header_up X-Forwarded-Proto http
