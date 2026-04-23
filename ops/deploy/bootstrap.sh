@@ -93,7 +93,28 @@ ClientAliveInterval 300
 ClientAliveCountMax 2
 AllowUsers root $APP_USER
 EOF
-systemctl reload ssh || systemctl reload sshd
+
+# Validate config before applying — never risk locking ourselves out.
+if ! sshd -t; then
+  warn "sshd config test failed; removing $SSHD"
+  rm -f "$SSHD"
+  exit 1
+fi
+
+# Ubuntu 24.04 uses socket activation (ssh.socket → ssh@.service per-connection);
+# 22.04 and older run ssh.service as a long-lived daemon. Some distros still use
+# the legacy sshd.service name. Handle all three without aborting.
+if systemctl cat ssh.socket &>/dev/null; then
+  systemctl restart ssh.socket
+  log "Restarted ssh.socket (socket-activated sshd — new connections pick up config)"
+fi
+if systemctl is-active --quiet ssh; then
+  systemctl reload ssh
+elif systemctl is-active --quiet sshd; then
+  systemctl reload sshd
+else
+  log "No long-lived ssh service running; relying on socket activation"
+fi
 
 # ─── 6. fail2ban ──────────────────────────────────────────────────────────
 log "Enabling fail2ban for sshd"
