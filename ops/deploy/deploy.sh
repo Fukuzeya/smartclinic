@@ -65,10 +65,10 @@ docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" "${PROFILES[@]}" up 
 log "Waiting for health checks"
 deadline=$(( $(date +%s) + 120 ))
 while :; do
-  unhealthy=$(docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" ps \
+  unhealthy=$(docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" "${PROFILES[@]}" ps \
     --format '{{.Service}} {{.Health}}' \
     | awk '$2 == "unhealthy" { print $1 }')
-  starting=$(docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" ps \
+  starting=$(docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" "${PROFILES[@]}" ps \
     --format '{{.Service}} {{.Health}}' \
     | awk '$2 == "starting" { print $1 }')
 
@@ -77,12 +77,12 @@ while :; do
   fi
   if [[ -n "$unhealthy" ]]; then
     echo "Unhealthy services: $unhealthy" >&2
-    docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" ps
+    docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" "${PROFILES[@]}" ps
     exit 1
   fi
   if (( $(date +%s) > deadline )); then
     echo "Timeout waiting for services; still starting: $starting" >&2
-    docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" ps
+    docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" "${PROFILES[@]}" ps
     exit 1
   fi
   echo "  still starting: $starting"
@@ -95,4 +95,4 @@ docker image prune -f >/dev/null
 # Keep recent tags but purge stale GHCR pulls (>14 days + not in use)
 docker image prune -a --filter "until=336h" -f >/dev/null || true
 
-log "Deploy complete - $(docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" ps --services | wc -l) services up"
+log "Deploy complete - $(docker compose --env-file "$ENV_FILE" "${COMPOSE_FILES[@]}" "${PROFILES[@]}" ps --services | wc -l) services up"
