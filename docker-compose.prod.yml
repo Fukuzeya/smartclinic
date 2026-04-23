@@ -82,14 +82,14 @@ services:
   keycloak:
     ports: !reset []
     <<: *app-common
-    # KC needs to know the public host. HTTP-only + IP = relax strict checks.
+    # KC needs to know the public host. HTTP-only + IP = relax HTTPS check only.
     environment:
       KC_DB: postgres
       KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
       KC_DB_USERNAME: keycloak
       KC_DB_PASSWORD: keycloak
       KC_HOSTNAME: ${DEPLOY_HOST}
-      KC_HOSTNAME_STRICT: "false"
+      KC_HOSTNAME_STRICT: "true"
       KC_HOSTNAME_STRICT_HTTPS: "false"
       KC_HTTP_ENABLED: "true"
       KC_PROXY: edge
